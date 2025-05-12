@@ -20,6 +20,7 @@ import {
   Switch,
   Slider,
   Divider,
+  Slide,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
@@ -30,6 +31,8 @@ import SpeedIcon from '@mui/icons-material/Speed';
 import ColorLensIcon from '@mui/icons-material/ColorLens';
 import AccessibilityNewIcon from '@mui/icons-material/AccessibilityNew';
 import TextFieldsIcon from '@mui/icons-material/TextFields';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Logo from '../../assets/logo.png'; // Add your logo image
 
@@ -46,6 +49,7 @@ const Dashboard = () => {
     showLabels: true,
     reducedMotion: false,
   });
+  const [isNavVisible, setIsNavVisible] = useState(true);
 
   // Sample data with more realistic inappropriate words
   const sampleData = {
@@ -72,14 +76,46 @@ const Dashboard = () => {
     velocityY: (Math.random() - 0.5) * 0.2,
   });
 
+  // Add responsive sizing helper
+  const getResponsiveSizes = useCallback((screenWidth) => {
+    if (screenWidth < 600) { // mobile
+      return {
+        bubbleBase: 0.15, // smaller base size for bubbles
+        minSize: 30,
+        maxSize: 60,
+        fontSize: {
+          word: '0.7rem',
+          count: '0.6rem'
+        },
+        bottomBarPadding: '6px 12px',
+        searchWidth: 120,
+        logoHeight: '24px'
+      };
+    }
+    return {
+      bubbleBase: 0.3, // original size
+      minSize: 40,
+      maxSize: 100,
+      fontSize: {
+        word: '1rem',
+        count: '0.8rem'
+      },
+      bottomBarPadding: '8px 16px',
+      searchWidth: 180,
+      logoHeight: '32px'
+    };
+  }, []);
+
+  // Modify processData to properly handle reducedMotion
   const processData = useCallback(() => {
-    const speedMultiplier = settings.reducedMotion ? 0.1 : 0.2;
+    const sizes = getResponsiveSizes(window.innerWidth);
+    const speedMultiplier = settings.reducedMotion ? 0 : 0.2; // Change 0.1 to 0
     
     const newBubbleData = sampleData.words.map(item => ({
       ...item,
       x: Math.random() * 80 + 10,
       y: Math.random() * 80 + 10,
-      size: Math.max(40, Math.min(100, item.count * 0.3)),
+      size: Math.max(sizes.minSize, Math.min(sizes.maxSize, item.count * sizes.bubbleBase)),
       color: settings.highContrast ? 
         (item.severity > 5 ? '#FF0000' : '#00FF00') : 
         settings.bubbleColor,
@@ -88,7 +124,7 @@ const Dashboard = () => {
     }));
     
     setBubbleData(newBubbleData);
-  }, [settings.reducedMotion, settings.highContrast, settings.bubbleColor]);
+  }, [settings.reducedMotion, settings.highContrast, settings.bubbleColor, getResponsiveSizes]);
 
   const updateBubblePositions = useCallback(() => {
     requestAnimationFrame(() => {
@@ -117,25 +153,36 @@ const Dashboard = () => {
     });
   }, []);
 
+  // Add window resize handler
+  useEffect(() => {
+    const handleResize = () => {
+      processData();
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [processData]);
+
+  // Also modify the animation effect to properly handle reducedMotion
   useEffect(() => {
     processData();
     let animationId;
     
     const animate = () => {
-      updateBubblePositions();
+      if (!settings.reducedMotion) { // Add this check
+        updateBubblePositions();
+      }
       animationId = requestAnimationFrame(animate);
     };
     
-    if (!settings.reducedMotion) {
-      animationId = requestAnimationFrame(animate);
-    }
+    animationId = requestAnimationFrame(animate);
     
     return () => {
       if (animationId) {
         cancelAnimationFrame(animationId);
       }
     };
-  }, [processData, updateBubblePositions, settings.reducedMotion]);
+  }, [processData, updateBubblePositions, settings.reducedMotion]); // Add settings.reducedMotion to dependencies
 
   const handleTimeFrameChange = (event) => {
     setTimeFrame(event.target.value);
@@ -165,59 +212,63 @@ const Dashboard = () => {
     }));
   };
 
-  // Optimize the bubble rendering
-  const BubbleComponent = memo(({ item, onClick }) => (
-    <Box
-      onClick={onClick}
-      sx={{
-        position: 'absolute',
-        left: `${item.x}%`,
-        top: `${item.y}%`,
-        width: item.size,
-        height: item.size,
-        borderRadius: '50%',
-        bgcolor: item.color,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transform: 'translate(-50%, -50%)',
-        cursor: 'pointer',
-        transition: 'transform 0.2s ease',
-        '&:hover': {
-          transform: 'translate(-50%, -50%) scale(1.1)',
-          zIndex: 2,
-          boxShadow: '0 0 20px rgba(255,255,255,0.2)',
-        },
-        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-      }}
-    >
-      {settings.showLabels && (
-        <>
-          <Typography 
-            sx={{ 
-              color: 'white',
-              fontSize: item.size > 80 ? '1rem' : '0.8rem',
-              fontWeight: 'bold',
-              textAlign: 'center',
-              textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
-            }}
-          >
-            {item.word}
-          </Typography>
-          <Typography 
-            sx={{ 
-              color: 'rgba(255,255,255,0.9)',
-              fontSize: item.size > 80 ? '0.9rem' : '0.7rem',
-              mt: 0.5,
-            }}
-          >
-            {item.count}
-          </Typography>
-        </>
-      )}
-    </Box>
-  ));
+  // Modify BubbleComponent to use responsive sizes
+  const BubbleComponent = memo(({ item, onClick }) => {
+    const sizes = getResponsiveSizes(window.innerWidth);
+    
+    return (
+      <Box
+        onClick={onClick}
+        sx={{
+          position: 'absolute',
+          left: `${item.x}%`,
+          top: `${item.y}%`,
+          width: item.size,
+          height: item.size,
+          borderRadius: '50%',
+          bgcolor: item.color,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transform: 'translate(-50%, -50%)',
+          cursor: 'pointer',
+          transition: 'transform 0.2s ease',
+          '&:hover': {
+            transform: 'translate(-50%, -50%) scale(1.1)',
+            zIndex: 2,
+            boxShadow: '0 0 20px rgba(255,255,255,0.2)',
+          },
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+        }}
+      >
+        {settings.showLabels && (
+          <>
+            <Typography 
+              sx={{ 
+                color: 'white',
+                fontSize: sizes.fontSize.word,
+                fontWeight: 'bold',
+                textAlign: 'center',
+                textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
+              }}
+            >
+              {item.word}
+            </Typography>
+            <Typography 
+              sx={{ 
+                color: 'rgba(255,255,255,0.9)',
+                fontSize: sizes.fontSize.count,
+                mt: 0.5,
+              }}
+            >
+              {item.count}
+            </Typography>
+          </>
+        )}
+      </Box>
+    );
+  });
 
   return (
     <Box sx={{ 
@@ -230,163 +281,219 @@ const Dashboard = () => {
         'radial-gradient(circle at 50% 50%, #1a1a1a 0%, #111111 100%)' : 
         'radial-gradient(circle at 50% 50%, #ffffff 0%, #f5f5f5 100%)'
     }}>
-      {/* Floating bottom bar */}
-      <Box sx={{ 
-        position: 'fixed',
-        bottom: 24,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 10,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 2,
-        background: 'rgba(28, 28, 28, 0.85)',
-        backdropFilter: 'blur(12px)',
-        borderRadius: '16px',
-        padding: '8px 16px',
-        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.2)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-      }}>
-        <Box sx={{ 
-          display: 'flex', 
+      {/* Toggle Button */}
+      <Box
+        onClick={() => setIsNavVisible(!isNavVisible)}
+        sx={{
+          position: 'fixed',
+          bottom: isNavVisible ? 
+            { xs: 'calc(12px + 140px)', sm: 'calc(24px + 60px)' } : 
+            { xs: '12px', sm: '24px' },
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 11,
+          cursor: 'pointer',
+          bgcolor: 'rgba(28, 28, 28, 0.85)',
+          backdropFilter: 'blur(12px)',
+          borderRadius: '12px',
+          padding: '8px',
+          display: 'flex',
           alignItems: 'center',
-          gap: 1.5,
-          pr: 2,
-          borderRight: '1px solid rgba(255, 255, 255, 0.1)',
-        }}>
-          <img 
-            src={Logo} 
-            alt="Logo" 
-            style={{ 
-              height: '32px',
-              width: 'auto',
-              filter: 'brightness(1.1)',
-            }} 
-          />
-          <Typography 
-            variant="subtitle1" 
-            sx={{ 
-              color: 'white',
-              fontWeight: 600,
-              letterSpacing: '0.5px',
-              background: 'linear-gradient(90deg, #fff 0%, rgba(255,255,255,0.8) 100%)',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
-          >
-            MURAi Flagged Words
-          </Typography>
-        </Box>
+          justifyContent: 'center',
+          transition: 'all 0.3s ease',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          '&:hover': {
+            bgcolor: 'rgba(40, 40, 40, 0.85)',
+          }
+        }}
+      >
+        {isNavVisible ? 
+          <KeyboardArrowDownIcon sx={{ color: 'white' }} /> : 
+          <KeyboardArrowUpIcon sx={{ color: 'white' }} />
+        }
+      </Box>
 
-        <Box sx={{ 
-          display: 'flex', 
-          gap: 1.5, 
-          alignItems: 'center',
-        }}>
-          <TextField
-            placeholder="Search words..."
-            value={searchTerm}
-            onChange={handleSearch}
-            size="small"
-            sx={{
-              width: 180,
-              '& .MuiOutlinedInput-root': {
+      {/* Modify bottom bar for mobile - wrap with Slide */}
+      <Slide direction="up" in={isNavVisible} mountOnEnter unmountOnExit>
+        <Box
+          sx={{
+            position: 'fixed',
+            bottom: { xs: 12, sm: 24 },
+            left: 0,
+            right: 0,
+            margin: '0 auto',
+            width: { xs: '90%', sm: 'auto' },
+            maxWidth: { xs: '90vw', sm: '800px' },
+            zIndex: 10,
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            alignItems: 'center',
+            gap: { xs: 1, sm: 2 },
+            background: 'rgba(28, 28, 28, 0.85)',
+            backdropFilter: 'blur(12px)',
+            borderRadius: '16px',
+            padding: (theme) => ({
+              xs: '12px',
+              sm: theme.spacing(1, 2)
+            }),
+            boxShadow: '0 4px 24px rgba(0, 0, 0, 0.2)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            mx: 'auto',
+          }}
+        >
+          {/* Logo and title section */}
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center',
+            gap: 1.5,
+            width: { xs: '100%', sm: 'auto' },
+            borderRight: { xs: 'none', sm: '1px solid rgba(255, 255, 255, 0.1)' },
+            borderBottom: { xs: '1px solid rgba(255, 255, 255, 0.1)', sm: 'none' },
+            pb: { xs: 1, sm: 0 },
+            pr: { xs: 0, sm: 2 },
+            justifyContent: { xs: 'center', sm: 'flex-start' },
+          }}>
+            <img 
+              src={Logo} 
+              alt="Logo" 
+              style={{ 
+                height: getResponsiveSizes(window.innerWidth).logoHeight,
+                width: 'auto',
+                filter: 'brightness(1.1)',
+              }} 
+            />
+            <Typography 
+              variant="subtitle1" 
+              sx={{ 
+                color: 'white',
+                fontWeight: 600,
+                letterSpacing: '0.5px',
+                fontSize: { xs: '0.9rem', sm: '1rem' },
+                background: 'linear-gradient(90deg, #fff 0%, rgba(255,255,255,0.8) 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              MURAi Flagged Words
+            </Typography>
+          </Box>
+
+          {/* Controls section */}
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: 1.5, 
+            alignItems: 'center',
+            width: { xs: '100%', sm: 'auto' },
+            justifyContent: { xs: 'center', sm: 'flex-start' },
+          }}>
+            <TextField
+              placeholder="Search words..."
+              value={searchTerm}
+              onChange={handleSearch}
+              size="small"
+              fullWidth
+              sx={{
+                width: { xs: '100%', sm: getResponsiveSizes(window.innerWidth).searchWidth },
+                '& .MuiOutlinedInput-root': {
+                  color: 'white',
+                  bgcolor: 'rgba(255,255,255,0.05)',
+                  borderRadius: '8px',
+                  '& fieldset': { 
+                    borderColor: 'transparent',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: 'rgba(255,255,255,0.1)',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: 'rgba(255,255,255,0.2)',
+                  },
+                  height: '36px',
+                },
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '18px' }} />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <Select
+              value={timeFrame}
+              onChange={handleTimeFrameChange}
+              size="small"
+              fullWidth={false}
+              sx={{ 
+                minWidth: { xs: '100%', sm: 130 },
+                height: '36px',
                 color: 'white',
                 bgcolor: 'rgba(255,255,255,0.05)',
                 borderRadius: '8px',
-                '& fieldset': { 
+                '& .MuiOutlinedInput-notchedOutline': {
                   borderColor: 'transparent',
                 },
-                '&:hover fieldset': {
+                '&:hover .MuiOutlinedInput-notchedOutline': {
                   borderColor: 'rgba(255,255,255,0.1)',
                 },
-                '&.Mui-focused fieldset': {
-                  borderColor: 'rgba(255,255,255,0.2)',
+                '& .MuiSelect-icon': {
+                  color: 'rgba(255,255,255,0.5)',
                 },
-                height: '36px',
-              },
-              '& .MuiInputBase-input::placeholder': {
-                color: 'rgba(255,255,255,0.5)',
-              },
-            }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '18px' }} />
-                </InputAdornment>
-              ),
-            }}
-          />
-          <Select
-            value={timeFrame}
-            onChange={handleTimeFrameChange}
-            size="small"
-            sx={{ 
-              minWidth: 130,
-              height: '36px',
-              color: 'white',
-              bgcolor: 'rgba(255,255,255,0.05)',
-              borderRadius: '8px',
-              '& .MuiOutlinedInput-notchedOutline': {
-                borderColor: 'transparent',
-              },
-              '&:hover .MuiOutlinedInput-notchedOutline': {
-                borderColor: 'rgba(255,255,255,0.1)',
-              },
-              '& .MuiSelect-icon': {
-                color: 'rgba(255,255,255,0.5)',
-              },
-            }}
-          >
-            <MenuItem value="day">Last 24 Hours</MenuItem>
-            <MenuItem value="month">Last 30 Days</MenuItem>
-            <MenuItem value="year">Last Year</MenuItem>
-          </Select>
-        </Box>
+              }}
+            >
+              <MenuItem value="day">Last 24 Hours</MenuItem>
+              <MenuItem value="month">Last 30 Days</MenuItem>
+              <MenuItem value="year">Last Year</MenuItem>
+            </Select>
+          </Box>
 
-        <Box sx={{ 
-          display: 'flex', 
-          gap: 0.5,
-          pl: 2,
-          borderLeft: '1px solid rgba(255, 255, 255, 0.1)',
-        }}>
-          <IconButton 
-            onClick={processData}
-            size="small"
-            sx={{ 
-              color: 'rgba(255,255,255,0.7)', 
-              '&:hover': { 
-                bgcolor: 'rgba(255,255,255,0.1)',
-                color: 'white',
-                transform: 'translateY(-2px)',
-              },
-              transition: 'all 0.2s ease',
-              width: '32px',
-              height: '32px',
-            }}
-          >
-            <RefreshIcon fontSize="small" />
-          </IconButton>
-          <IconButton 
-            onClick={() => setSettingsOpen(true)}
-            size="small"
-            sx={{ 
-              color: 'rgba(255,255,255,0.7)',
-              '&:hover': { 
-                bgcolor: 'rgba(255,255,255,0.1)',
-                color: 'white',
-                transform: 'translateY(-2px)',
-              },
-              transition: 'all 0.2s ease',
-              width: '32px',
-              height: '32px',
-            }}
-          >
-            <SettingsIcon fontSize="small" />
-          </IconButton>
+          <Box sx={{ 
+            display: 'flex', 
+            gap: 0.5,
+            pl: { xs: 0, sm: 2 },
+            borderLeft: { xs: 'none', sm: '1px solid rgba(255, 255, 255, 0.1)' },
+            width: { xs: '100%', sm: 'auto' },
+            justifyContent: { xs: 'center', sm: 'flex-start' },
+            mt: { xs: 1, sm: 0 },
+          }}>
+            <IconButton 
+              onClick={processData}
+              size="small"
+              sx={{ 
+                color: 'rgba(255,255,255,0.7)', 
+                '&:hover': { 
+                  bgcolor: 'rgba(255,255,255,0.1)',
+                  color: 'white',
+                  transform: 'translateY(-2px)',
+                },
+                transition: 'all 0.2s ease',
+                width: '32px',
+                height: '32px',
+              }}
+            >
+              <RefreshIcon fontSize="small" />
+            </IconButton>
+            <IconButton 
+              onClick={() => setSettingsOpen(true)}
+              size="small"
+              sx={{ 
+                color: 'rgba(255,255,255,0.7)',
+                '&:hover': { 
+                  bgcolor: 'rgba(255,255,255,0.1)',
+                  color: 'white',
+                  transform: 'translateY(-2px)',
+                },
+                transition: 'all 0.2s ease',
+                width: '32px',
+                height: '32px',
+              }}
+            >
+              <SettingsIcon fontSize="small" />
+            </IconButton>
+          </Box>
         </Box>
-      </Box>
+      </Slide>
 
       {/* Bubble Container with adjusted boundaries */}
       <Box sx={{ 

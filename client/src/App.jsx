@@ -4,7 +4,7 @@ import AdminLogin from './components/Auth/adminLogin';
 import AdminDashboard from './components/Admin/adminDashboard';
 import ModelDashboard from './components/Admin/ModelDashboard';
 import AdminLayout from './components/Admin/AdminLayout';
-import Dashboard from './components/User/Dashboard';
+import Dashboard from './components/User/bubbleChart';
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {

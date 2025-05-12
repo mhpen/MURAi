@@ -1,5 +1,5 @@
-import React from 'react';
-import { BarChart3, PieChartIcon, LineChartIcon, Filter } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { BarChart3, PieChartIcon, LineChartIcon, Filter, Clock, Users, AlertCircle, Activity, ShieldAlert, AlertOctagon, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { CHART_COLORS } from '@/constants/colors';
 import { Doughnut } from 'react-chartjs-2';
@@ -10,6 +10,8 @@ import {
   Legend
 } from 'chart.js';
 import KPICard from './KPICard';
+import { generateReport } from '@/utils/reportGenerator';
+import DownloadButton from '@/components/ui/DownloadButton';
 
 // Register Chart.js components
 ChartJS.register(
@@ -18,9 +20,129 @@ ChartJS.register(
   Legend
 );
 
-const Overview = ({ isDarkMode, mockData }) => {
-    // Add console.log to debug
-    console.log('Overview Props:', { isDarkMode, mockData });
+const Overview = ({ isDarkMode }) => {
+  const [data, setData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Add refs for the charts
+  const sentimentChartRef = useRef(null);
+  const detectionChartRef = useRef(null);
+  const accuracyChartRef = useRef(null);
+  const languageChartRef = useRef(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
+
+        const response = await fetch('http://localhost:5001/api/admin/analytics/overview', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch overview data');
+        }
+
+        const result = await response.json();
+        console.log('Raw API response:', result);
+
+        // Transform data with defaults for all fields
+        const transformedData = {
+          totalFlagged: result?.totalFlagged || 0,
+          flaggedContent: {
+            total: result?.flaggedContent?.total || 0,
+            automated: result?.flaggedContent?.automated || 0,
+            userReported: result?.flaggedContent?.userReported || 0,
+            weeklyChange: result?.flaggedContent?.weeklyChange || 0
+          },
+          moderationStats: {
+            accuracy: result?.moderationStats?.accuracy || 0,
+            truePositives: result?.moderationStats?.truePositives || 0,
+            falsePositives: result?.moderationStats?.falsePositives || 0,
+            responseTime: result?.moderationStats?.responseTime || 'N/A'
+          },
+          languageBreakdown: {
+            filipino: result?.languageBreakdown?.filipino || 0,
+            english: result?.languageBreakdown?.english || 0
+          },
+          sentimentBreakdown: {
+            total: result?.sentimentBreakdown?.total || 0,
+            positive: result?.sentimentBreakdown?.positive || 0,
+            neutral: result?.sentimentBreakdown?.neutral || 0,
+            negative: result?.sentimentBreakdown?.negative || 0
+          },
+          websiteSources: result?.websiteSources || [],
+          additionalStats: {
+            pendingReports: result?.additionalStats?.pendingReports || 0,
+            totalUsers: result?.additionalStats?.totalUsers || 0,
+            reportsLast24H: result?.additionalStats?.reportsLast24H || 0,
+            avgResponseTimes: result?.additionalStats?.avgResponseTimes || [],
+            highSeverityCount: result?.additionalStats?.highSeverityCount || 0,
+            processingCount: result?.additionalStats?.processingCount || 0
+          }
+        };
+
+        console.log('Transformed data:', transformedData);
+        setData(transformedData);
+      } catch (error) {
+        console.error('Error fetching overview data:', error);
+        setError(error.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Add error boundary for calculations
+  const calculatePercentage = (part, total) => {
+    if (!part || !total) return 0;
+    return ((part / total) * 100).toFixed(1);
+  };
+
+  // Add safe render check
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-[50vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center h-[50vh]">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">Error: {error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="flex justify-center items-center h-[50vh]">
+        <p>No data available</p>
+      </div>
+    );
+  }
 
     // Helper function to get the right color based on mode
     const getColor = (colorObj, type, isDarkMode) => {
@@ -76,7 +198,7 @@ const Overview = ({ isDarkMode, mockData }) => {
     const languageData = {
         labels: ['Filipino', 'English'],
         datasets: [{
-            data: [mockData.languageBreakdown.filipino, mockData.languageBreakdown.english],
+      data: [data.languageBreakdown.filipino, data.languageBreakdown.english],
             backgroundColor: [
                 isDarkMode 
                     ? 'rgba(156, 163, 175, 0.4)' // Light gray with low opacity for dark mode
@@ -107,9 +229,9 @@ const Overview = ({ isDarkMode, mockData }) => {
 
     // Sentiment chart data
     const sentimentData = {
-        labels: Object.keys(mockData.sentimentBreakdown).filter(key => key !== 'total'),
+    labels: Object.keys(data.sentimentBreakdown).filter(key => key !== 'total'),
         datasets: [{
-            data: Object.entries(mockData.sentimentBreakdown)
+      data: Object.entries(data.sentimentBreakdown)
                 .filter(([key]) => key !== 'total')
                 .map(([_, value]) => value),
             backgroundColor: [
@@ -135,20 +257,14 @@ const Overview = ({ isDarkMode, mockData }) => {
     const detectionData = {
         labels: ['Automated', 'User Reports'],
         datasets: [{
-            data: [mockData.flaggedContent.automated, mockData.flaggedContent.userReported],
-            backgroundColor: [
-                isDarkMode ? 'rgba(125, 211, 252, 0.25)' : 'rgba(14, 165, 233, 0.15)', // Automated - muted blue
-                isDarkMode ? 'rgba(253, 224, 71, 0.25)' : 'rgba(234, 179, 8, 0.15)'    // Manual - muted yellow
-            ],
-            borderColor: [
-                isDarkMode ? 'rgba(125, 211, 252, 0.8)' : 'rgba(14, 165, 233, 0.7)', // Automated - muted blue
-                isDarkMode ? 'rgba(253, 224, 71, 0.8)' : 'rgba(234, 179, 8, 0.7)'    // Manual - muted yellow
-            ],
-            borderWidth: 2,
-            hoverBackgroundColor: [
-                isDarkMode ? 'rgba(125, 211, 252, 0.4)' : 'rgba(14, 165, 233, 0.3)', // Automated - muted blue
-                isDarkMode ? 'rgba(253, 224, 71, 0.4)' : 'rgba(234, 179, 8, 0.3)'    // Manual - muted yellow
-            ]
+      data: [
+        data.flaggedContent.automated,
+        data.flaggedContent.userReported
+      ],
+      backgroundColor: isDarkMode 
+        ? ['rgba(125, 211, 252, 0.8)', 'rgba(253, 224, 71, 0.8)']
+        : ['rgba(14, 165, 233, 0.7)', 'rgba(234, 179, 8, 0.7)'],
+      borderWidth: 0
         }]
     };
 
@@ -156,7 +272,7 @@ const Overview = ({ isDarkMode, mockData }) => {
     const accuracyData = {
         labels: ['True Positives', 'False Positives'],
         datasets: [{
-            data: [mockData.moderationStats.truePositives, mockData.moderationStats.falsePositives],
+      data: [data.moderationStats.truePositives, data.moderationStats.falsePositives],
             backgroundColor: [
                 isDarkMode ? 'rgba(134, 239, 172, 0.25)' : 'rgba(34, 197, 94, 0.15)',  // True positives - muted green
                 isDarkMode ? 'rgba(254, 202, 202, 0.25)' : 'rgba(220, 38, 38, 0.15)'   // False positives - muted red
@@ -173,37 +289,151 @@ const Overview = ({ isDarkMode, mockData }) => {
         }]
     };
 
+    const handleDownload = async () => {
+      if (!data) return;
+      
+      try {
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const getChartImage = (ref, title, labels) => {
+          try {
+            if (!ref.current) {
+              console.warn('Chart ref not available');
+              return null;
+            }
+            return {
+              dataUrl: ref.current.canvas.toDataURL('image/png'),
+              title,
+              labels
+            };
+          } catch (err) {
+            console.warn('Error getting chart image:', err);
+            return null;
+          }
+        };
+
+        const charts = {
+          language: getChartImage(languageChartRef, 'Language Distribution', {
+            title: 'Content Language Distribution',
+            labels: ['Filipino', 'English'],
+            values: [data.languageBreakdown.filipino, data.languageBreakdown.english]
+          }),
+          sentiment: getChartImage(sentimentChartRef, 'Sentiment Analysis', {
+            title: 'Content Sentiment Distribution',
+            labels: ['Positive', 'Neutral', 'Negative'],
+            values: [
+              data.sentimentBreakdown.positive,
+              data.sentimentBreakdown.neutral,
+              data.sentimentBreakdown.negative
+            ]
+          }),
+          detection: getChartImage(detectionChartRef, 'Detection Methods', {
+            title: 'Content Detection Methods',
+            labels: ['Automated Detection', 'User Reports'],
+            values: [data.flaggedContent.automated, data.flaggedContent.userReported]
+          }),
+          accuracy: getChartImage(accuracyChartRef, 'Moderation Accuracy', {
+            title: 'Moderation Decision Accuracy',
+            labels: ['True Positives', 'False Positives'],
+            values: [data.moderationStats.truePositives, data.moderationStats.falsePositives]
+          })
+        };
+
+        const validCharts = Object.fromEntries(
+          Object.entries(charts).filter(([_, value]) => value !== null)
+        );
+
+        await generateReport({ 
+          ...data,
+          charts: validCharts,
+          reportDate: new Date().toLocaleString(),
+          isDarkMode
+        }, 'overview');
+      } catch (error) {
+        console.error('Error generating report:', error);
+      }
+    };
+
     return (
         <div className="space-y-8">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-semibold">Overview</h2>
+              <DownloadButton onClick={handleDownload} isDarkMode={isDarkMode} />
+            </div>
+
             {/* Primary KPIs */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 1. Total Users */}
+        <KPICard
+          isDarkMode={isDarkMode}
+          title="Total Users"
+          value={data.additionalStats.totalUsers || 0}
+          subValue="Active accounts"
+          icon={Users}
+        />
+
+        {/* 2. Total Flagged */}
                 <KPICard
                     isDarkMode={isDarkMode}
-                    title="Total Flagged Content"
-                    value={mockData.totalFlagged}
-                    subValue={`${mockData.flaggedContent.weeklyChange} this week`}
+          title="Total Flagged"
+          value={data.totalFlagged || 0}
+          subValue={`${data.flaggedContent.weeklyChange || 0} this week`}
                     icon={Filter}
                 />
+
+        {/* 3. User Reports */}
+        <KPICard
+          isDarkMode={isDarkMode}
+          title="User Reports"
+          value={data.flaggedContent.userReported || 0}
+          subValue="Community reports"
+          icon={Users}
+        />
+
+        {/* 4. Auto Detection */}
+        <KPICard
+          isDarkMode={isDarkMode}
+          title="Auto Detection"
+          value={`${calculatePercentage(data.flaggedContent.automated, data.flaggedContent.total)}%`}
+          subValue="Automated flags"
+          icon={ShieldAlert}
+        />
+
+        {/* 5. Pending Reports */}
+        <KPICard
+          isDarkMode={isDarkMode}
+          title="Pending Reports"
+          value={data.additionalStats.pendingReports || 0}
+          subValue="Awaiting review"
+          icon={AlertCircle}
+          className={data.additionalStats.pendingReports > 0 ? "border-yellow-500/50" : ""}
+        />
+
+        {/* 6. Accuracy */}
                 <KPICard
                     isDarkMode={isDarkMode}
-                    title="Automated vs User Reports"
-                    value={`${((mockData.flaggedContent.automated/mockData.flaggedContent.total)*100).toFixed(0)}%`}
-                    subValue={`${mockData.flaggedContent.userReported} user reports`}
-                    icon={BarChart3}
-                />
+          title="Accuracy"
+          value={`${data.moderationStats.accuracy || 0}%`}
+          subValue="Moderation accuracy"
+          icon={CheckCircle}
+        />
+
+        {/* 7. False Positives */}
                 <KPICard
                     isDarkMode={isDarkMode}
-                    title="Moderation Accuracy"
-                    value={`${mockData.moderationStats.accuracy}%`}
-                    subValue={`${mockData.moderationStats.falsePositives} false positives`}
-                    icon={PieChartIcon}
-                />
+          title="False Positives"
+          value={data.moderationStats.falsePositives || 0}
+          subValue="Incorrect flags"
+          icon={XCircle}
+        />
+
+        {/* 8. 24h Activity */}
                 <KPICard
                     isDarkMode={isDarkMode}
-                    title="Average Response Time"
-                    value={mockData.moderationStats.responseTime}
-                    subValue="Detection speed"
-                    icon={LineChartIcon}
+          title="24h Reports"
+          value={data.additionalStats.reportsLast24H || 0}
+          subValue="Last 24 hours"
+          icon={Activity}
                 />
             </div>
 
@@ -221,13 +451,13 @@ const Overview = ({ isDarkMode, mockData }) => {
                             <div>
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-sm">Filipino</span>
-                                    <span className="font-medium">{mockData.languageBreakdown.filipino} flags</span>
+                  <span className="font-medium">{data.languageBreakdown.filipino} flags</span>
                                 </div>
                                 <div className="w-full bg-black/5 rounded-full h-2">
                                     <div 
                                         className="h-2 rounded-full" 
                                         style={{ 
-                                            width: `${(mockData.languageBreakdown.filipino/(mockData.languageBreakdown.filipino + mockData.languageBreakdown.english))*100}%`,
+                      width: `${(data.languageBreakdown.filipino/(data.languageBreakdown.filipino + data.languageBreakdown.english))*100}%`,
                                             backgroundColor: getColor(CHART_COLORS.primary.filipino, 'main', isDarkMode)
                                         }}
                                     />
@@ -238,13 +468,13 @@ const Overview = ({ isDarkMode, mockData }) => {
                             <div>
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-sm">English</span>
-                                    <span className="font-medium">{mockData.languageBreakdown.english} flags</span>
+                  <span className="font-medium">{data.languageBreakdown.english} flags</span>
                                 </div>
                                 <div className="w-full bg-black/5 rounded-full h-2">
                                     <div 
                                         className="h-2 rounded-full" 
                                         style={{ 
-                                            width: `${(mockData.languageBreakdown.english/(mockData.languageBreakdown.filipino + mockData.languageBreakdown.english))*100}%`,
+                      width: `${(data.languageBreakdown.english/(data.languageBreakdown.filipino + data.languageBreakdown.english))*100}%`,
                                             backgroundColor: getColor(CHART_COLORS.primary.english, 'main', isDarkMode)
                                         }}
                                     />
@@ -254,34 +484,17 @@ const Overview = ({ isDarkMode, mockData }) => {
                         
                         {/* Language Chart */}
                         <div className="h-[120px] flex items-center justify-center">
-                            <Doughnut data={languageData} options={doughnutOptions} />
+                            <Doughnut data={languageData} options={doughnutOptions} ref={languageChartRef} />
                         </div>
                     </div>
                 </div>
 
                 {/* Website Sources */}
-                <div className={cn(
-                    "border rounded-lg p-6",
-                    isDarkMode ? "border-white/5 bg-[#1A1A1A]" : "border-black/5"
-                )}>
-                    <h3 className="text-lg font-medium mb-4">Website Sources</h3>
-                    <div className="space-y-3">
-                        {mockData.websiteSources.map((source, index) => (
-                            <div key={source.name} className="space-y-1">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm">{source.name}</span>
-                                    <span className="font-medium">{((source.count/mockData.flaggedContent.total)*100).toFixed(1)}%</span>
-                                </div>
-                                <div className="w-full bg-black/5 rounded-full h-2">
-                                    <div 
-                                        className="bg-black/20 h-2 rounded-full" 
-                                        style={{ width: `${(source.count/mockData.flaggedContent.total)*100}%` }}
-                                    />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+        <WebsiteSourcesSection 
+          data={data} 
+          isDarkMode={isDarkMode} 
+          calculatePercentage={calculatePercentage}
+        />
 
                 {/* Quick Sentiment Overview */}
                 <div className={cn(
@@ -291,21 +504,21 @@ const Overview = ({ isDarkMode, mockData }) => {
                     <h3 className="text-lg font-medium mb-4">Quick Sentiment Overview</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-3">
-                            {Object.entries(mockData.sentimentBreakdown)
+              {Object.entries(data.sentimentBreakdown)
                                 .filter(([key]) => key !== 'total')
                                 .map(([sentiment, count]) => (
                                 <div key={sentiment} className="space-y-1">
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm capitalize">{sentiment}</span>
                                         <span className="font-medium">
-                                            {((count/mockData.sentimentBreakdown.total)*100).toFixed(1)}%
+                      {((count/data.sentimentBreakdown.total)*100).toFixed(1)}%
                                         </span>
                                     </div>
                                     <div className="w-full bg-black/5 rounded-full h-2">
                                         <div 
                                             className="h-2 rounded-full" 
                                             style={{ 
-                                                width: `${(count/mockData.sentimentBreakdown.total)*100}%`,
+                        width: `${(count/data.sentimentBreakdown.total)*100}%`,
                                                 backgroundColor: sentiment.toLowerCase() === 'positive' 
                                                     ? (isDarkMode ? 'rgba(74, 222, 128, 0.8)' : 'rgba(22, 163, 74, 0.7)')
                                                     : sentiment.toLowerCase() === 'neutral'
@@ -320,7 +533,7 @@ const Overview = ({ isDarkMode, mockData }) => {
                         
                         {/* Sentiment Chart */}
                         <div className="h-[120px] flex items-center justify-center">
-                            <Doughnut data={sentimentData} options={doughnutOptions} />
+                            <Doughnut data={sentimentData} options={doughnutOptions} ref={sentimentChartRef} />
                         </div>
                     </div>
                 </div>
@@ -332,34 +545,37 @@ const Overview = ({ isDarkMode, mockData }) => {
                     "border rounded-lg p-6",
                     isDarkMode ? "border-white/5 bg-[#1A1A1A]" : "border-black/5"
                 )}>
-                    <h3 className="text-lg font-medium mb-4">Detection Method Breakdown</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <h3 className="text-lg font-medium mb-6">Detection Method Breakdown</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-6">
                         <div className="space-y-3">
-                            <div>
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-sm">Automated Detection</span>
-                                    <span className="font-medium">{mockData.flaggedContent.automated} flags</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Automated Detection</span>
+                  <span className="font-medium">{data.flaggedContent.automated} detections</span>
                                 </div>
-                                <div className="w-full bg-black/5 rounded-full h-2">
+                <div className="relative w-full h-2">
+                  <div className="absolute inset-0 bg-black/5 rounded-full" />
                                     <div 
-                                        className="h-2 rounded-full" 
+                    className="absolute inset-0 rounded-full transition-all duration-300"
                                         style={{ 
-                                            width: `${(mockData.flaggedContent.automated/mockData.flaggedContent.total)*100}%`,
+                      width: `${(data.flaggedContent.automated / (data.flaggedContent.automated + data.flaggedContent.userReported) * 100).toFixed(1)}%`,
                                             backgroundColor: isDarkMode ? 'rgba(125, 211, 252, 0.8)' : 'rgba(14, 165, 233, 0.7)'
                                         }}
                                     />
                                 </div>
                             </div>
-                            <div>
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-sm">User Reports</span>
-                                    <span className="font-medium">{mockData.flaggedContent.userReported} reports</span>
+
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">User Reports</span>
+                  <span className="font-medium">{data.flaggedContent.userReported} reports</span>
                                 </div>
-                                <div className="w-full bg-black/5 rounded-full h-2">
+                <div className="relative w-full h-2">
+                  <div className="absolute inset-0 bg-black/5 rounded-full" />
                                     <div 
-                                        className="h-2 rounded-full" 
+                    className="absolute inset-0 rounded-full transition-all duration-300"
                                         style={{ 
-                                            width: `${(mockData.flaggedContent.userReported/mockData.flaggedContent.total)*100}%`,
+                      width: `${(data.flaggedContent.userReported / (data.flaggedContent.automated + data.flaggedContent.userReported) * 100).toFixed(1)}%`,
                                             backgroundColor: isDarkMode ? 'rgba(253, 224, 71, 0.8)' : 'rgba(234, 179, 8, 0.7)'
                                         }}
                                     />
@@ -367,9 +583,8 @@ const Overview = ({ isDarkMode, mockData }) => {
                             </div>
                         </div>
                         
-                        {/* Detection Method Chart */}
-                        <div className="h-[120px] flex items-center justify-center">
-                            <Doughnut data={detectionData} options={doughnutOptions} />
+            <div className="h-[160px] flex items-center justify-center">
+                            <Doughnut data={detectionData} options={doughnutOptions} ref={detectionChartRef} />
                         </div>
                     </div>
                 </div>
@@ -385,13 +600,13 @@ const Overview = ({ isDarkMode, mockData }) => {
                             <div>
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-sm">True Positives</span>
-                                    <span className="font-medium">{mockData.moderationStats.truePositives} flags</span>
+                  <span className="font-medium">{data.moderationStats.truePositives} flags</span>
                                 </div>
                                 <div className="w-full bg-green-100/20 h-2 rounded-full">
                                     <div 
                                         className="h-2 rounded-full" 
                                         style={{ 
-                                            width: `${(mockData.moderationStats.truePositives/(mockData.moderationStats.truePositives + mockData.moderationStats.falsePositives))*100}%`,
+                      width: `${(data.moderationStats.truePositives/(data.moderationStats.truePositives + data.moderationStats.falsePositives))*100}%`,
                                             backgroundColor: isDarkMode ? 'rgba(134, 239, 172, 0.8)' : 'rgba(34, 197, 94, 0.7)'
                                         }}
                                     />
@@ -400,13 +615,13 @@ const Overview = ({ isDarkMode, mockData }) => {
                             <div>
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-sm">False Positives</span>
-                                    <span className="font-medium">{mockData.moderationStats.falsePositives} flags</span>
+                  <span className="font-medium">{data.moderationStats.falsePositives} flags</span>
                                 </div>
                                 <div className="w-full bg-red-100/20 h-2 rounded-full">
                                     <div 
                                         className="h-2 rounded-full" 
                                         style={{ 
-                                            width: `${(mockData.moderationStats.falsePositives/(mockData.moderationStats.truePositives + mockData.moderationStats.falsePositives))*100}%`,
+                      width: `${(data.moderationStats.falsePositives/(data.moderationStats.truePositives + data.moderationStats.falsePositives))*100}%`,
                                             backgroundColor: isDarkMode ? 'rgba(254, 202, 202, 0.8)' : 'rgba(220, 38, 38, 0.7)'
                                         }}
                                     />
@@ -416,13 +631,60 @@ const Overview = ({ isDarkMode, mockData }) => {
                         
                         {/* Accuracy Chart */}
                         <div className="h-[120px] flex items-center justify-center">
-                            <Doughnut data={accuracyData} options={doughnutOptions} />
+                            <Doughnut data={accuracyData} options={doughnutOptions} ref={accuracyChartRef} />
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     );
+};
+
+const WebsiteSourcesSection = ({ data, isDarkMode, calculatePercentage }) => {
+  if (!data.websiteSources || data.websiteSources.length === 0) {
+    return (
+      <div className={cn(
+        "border rounded-lg p-6",
+        isDarkMode ? "border-white/5 bg-[#1A1A1A]" : "border-black/5"
+      )}>
+        <h3 className="text-lg font-medium mb-4">Website Sources</h3>
+        <div className="flex items-center justify-center h-[200px] text-gray-500">
+          No website data available
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn(
+      "border rounded-lg p-6",
+      isDarkMode ? "border-white/5 bg-[#1A1A1A]" : "border-black/5"
+    )}>
+      <h3 className="text-lg font-medium mb-4">Website Sources</h3>
+      <div className="h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+        <div className="space-y-4">
+          {data.websiteSources.map((source, index) => (
+            <div key={source.name || index} className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm truncate flex-1 mr-2">{source.name || 'Unknown'}</span>
+                <span className="font-medium whitespace-nowrap">
+                  {calculatePercentage(source.count, data.flaggedContent.total)}%
+                </span>
+              </div>
+              <div className="w-full bg-black/5 rounded-full h-2.5">
+                <div 
+                  className="bg-black/20 h-2.5 rounded-full" 
+                  style={{ 
+                    width: `${calculatePercentage(source.count, data.flaggedContent.total)}%` 
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default Overview; 

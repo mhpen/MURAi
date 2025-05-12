@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Chart as ChartJS,
   CategoryScale,
@@ -17,6 +17,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CHART_COLORS } from '@/constants/colors';
 import { ChevronDown, ChevronUp, Download, RefreshCw } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { generateReport } from '@/utils/reportGenerator';
+import DownloadButton from '@/components/ui/DownloadButton';
 
 // Register Chart.js components
 ChartJS.register(
@@ -32,11 +35,14 @@ ChartJS.register(
   Filler
 );
 
-const DetailedView = ({ isDarkMode, mockData, timeSeriesData, wordFrequencyData, sentimentData }) => {
+const DetailedView = ({ isDarkMode }) => {
   const [timeRange, setTimeRange] = useState('daily');
-  const [selectedLanguage, setSelectedLanguage] = useState('both');
+  const [language, setLanguage] = useState('both');
   const [expandedChart, setExpandedChart] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [data, setData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   
   // Chart references for exporting
   const sentimentChartRef = useRef(null);
@@ -69,12 +75,6 @@ const DetailedView = ({ isDarkMode, mockData, timeSeriesData, wordFrequencyData,
       link.click();
     }
   };
-
-  // Filter data based on selected language
-  const filteredWordData = wordFrequencyData.filter(item => {
-    if (selectedLanguage === 'both') return true;
-    return item[selectedLanguage] > 0;
-  });
 
   // Chart control component
   const ChartControls = ({ title, chartId, chartRef }) => (
@@ -198,101 +198,47 @@ const DetailedView = ({ isDarkMode, mockData, timeSeriesData, wordFrequencyData,
     }
   };
 
+  // Time series data for Line chart
+  const trendChartData = {
+    labels: data?.timeSeriesData?.map(item => item.time) || [],
+    datasets: [{
+      label: 'Detections',
+      data: data?.timeSeriesData?.map(item => item.count) || [],
+      borderColor: isDarkMode ? 'rgba(186, 230, 253, 0.8)' : 'rgba(56, 189, 248, 0.7)',
+      backgroundColor: isDarkMode ? 'rgba(186, 230, 253, 0.1)' : 'rgba(56, 189, 248, 0.05)',
+      fill: true,
+      tension: 0.4,
+      borderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 6
+    }]
+  };
+
   // Sentiment data for Pie chart
   const sentimentChartData = {
-    labels: sentimentData.map(item => item.name),
+    labels: Object.keys(data?.sentimentData || {}),
     datasets: [{
-      data: sentimentData.map(item => item.value),
-      backgroundColor: sentimentData.map(item => {
-        const sentiment = item.name.toLowerCase();
-        if (sentiment === 'positive') {
-          return isDarkMode ? 'rgba(74, 222, 128, 0.25)' : 'rgba(22, 163, 74, 0.15)';
-        } else if (sentiment === 'neutral') {
-          return isDarkMode ? 'rgba(203, 213, 225, 0.25)' : 'rgba(148, 163, 184, 0.15)';
-        } else {
-          return isDarkMode ? 'rgba(252, 165, 165, 0.25)' : 'rgba(239, 68, 68, 0.15)';
-        }
-      }),
-      borderColor: sentimentData.map(item => {
-        const sentiment = item.name.toLowerCase();
-        if (sentiment === 'positive') {
-          return isDarkMode ? 'rgba(74, 222, 128, 0.8)' : 'rgba(22, 163, 74, 0.7)';
-        } else if (sentiment === 'neutral') {
-          return isDarkMode ? 'rgba(203, 213, 225, 0.8)' : 'rgba(148, 163, 184, 0.7)';
-        } else {
-          return isDarkMode ? 'rgba(252, 165, 165, 0.8)' : 'rgba(239, 68, 68, 0.7)';
-        }
-      }),
-      borderWidth: 2,
-      hoverBackgroundColor: sentimentData.map(item => {
-        const sentiment = item.name.toLowerCase();
-        if (sentiment === 'positive') {
-          return isDarkMode ? 'rgba(74, 222, 128, 0.4)' : 'rgba(22, 163, 74, 0.3)';
-        } else if (sentiment === 'neutral') {
-          return isDarkMode ? 'rgba(203, 213, 225, 0.4)' : 'rgba(148, 163, 184, 0.3)';
-        } else {
-          return isDarkMode ? 'rgba(252, 165, 165, 0.4)' : 'rgba(239, 68, 68, 0.3)';
-        }
-      })
+      data: Object.values(data?.sentimentData || {}),
+      backgroundColor: [
+        isDarkMode ? 'rgba(74, 222, 128, 0.8)' : 'rgba(22, 163, 74, 0.7)', // Positive
+        isDarkMode ? 'rgba(203, 213, 225, 0.8)' : 'rgba(148, 163, 184, 0.7)', // Neutral
+        isDarkMode ? 'rgba(252, 165, 165, 0.8)' : 'rgba(239, 68, 68, 0.7)' // Negative
+      ],
+      borderWidth: 0
     }]
   };
 
   // Word frequency data for Bar chart
   const wordChartData = {
-    labels: filteredWordData.map(item => item.word),
-    datasets: [
-      {
-        label: 'Filipino',
-        data: filteredWordData.map(item => item.filipino),
+    labels: data?.wordFrequencyData?.map(item => item.word) || [],
+    datasets: [{
+      label: 'Frequency',
+      data: data?.wordFrequencyData?.map(item => item.count) || [],
         backgroundColor: isDarkMode ? 'rgba(186, 230, 253, 0.25)' : 'rgba(56, 189, 248, 0.15)',
         borderColor: isDarkMode ? 'rgba(186, 230, 253, 0.8)' : 'rgba(56, 189, 248, 0.7)',
         borderWidth: 2,
-        borderRadius: 4,
-        hoverBackgroundColor: isDarkMode ? 'rgba(186, 230, 253, 0.4)' : 'rgba(56, 189, 248, 0.3)'
-      },
-      {
-        label: 'English',
-        data: filteredWordData.map(item => item.english),
-        backgroundColor: isDarkMode ? 'rgba(216, 180, 254, 0.25)' : 'rgba(168, 85, 247, 0.15)',
-        borderColor: isDarkMode ? 'rgba(216, 180, 254, 0.8)' : 'rgba(168, 85, 247, 0.7)',
-        borderWidth: 2,
-        borderRadius: 4,
-        hoverBackgroundColor: isDarkMode ? 'rgba(216, 180, 254, 0.4)' : 'rgba(168, 85, 247, 0.3)'
-      }
-    ]
-  };
-
-  // Time series data for Line chart
-  const trendChartData = {
-    labels: timeSeriesData.map(item => item.name),
-    datasets: [
-      {
-        label: 'Filipino',
-        data: timeSeriesData.map(item => item.filipino),
-        borderColor: isDarkMode ? 'rgba(186, 230, 253, 0.8)' : 'rgba(56, 189, 248, 0.7)',
-        backgroundColor: isDarkMode ? 'rgba(186, 230, 253, 0.1)' : 'rgba(56, 189, 248, 0.05)',
-        fill: true,
-        tension: 0.4,
-        borderWidth: 2,
-        pointBackgroundColor: isDarkMode ? 'rgba(186, 230, 253, 0.8)' : 'rgba(56, 189, 248, 0.7)',
-        pointBorderColor: isDarkMode ? '#1A1A1A' : '#FFFFFF',
-        pointRadius: 4,
-        pointHoverRadius: 6
-      },
-      {
-        label: 'English',
-        data: timeSeriesData.map(item => item.english),
-        borderColor: isDarkMode ? 'rgba(216, 180, 254, 0.8)' : 'rgba(168, 85, 247, 0.7)',
-        backgroundColor: isDarkMode ? 'rgba(216, 180, 254, 0.1)' : 'rgba(168, 85, 247, 0.05)',
-        fill: true,
-        tension: 0.4,
-        borderWidth: 2,
-        pointBackgroundColor: isDarkMode ? 'rgba(216, 180, 254, 0.8)' : 'rgba(168, 85, 247, 0.7)',
-        pointBorderColor: isDarkMode ? '#1A1A1A' : '#FFFFFF',
-        pointRadius: 4,
-        pointHoverRadius: 6
-      }
-    ]
+      borderRadius: 4
+    }]
   };
 
   // Custom options for each chart type
@@ -330,60 +276,177 @@ const DetailedView = ({ isDarkMode, mockData, timeSeriesData, wordFrequencyData,
 
   const lineOptions = {
     ...chartOptions,
+    maintainAspectRatio: false,
     plugins: {
       ...chartOptions.plugins,
+      legend: {
+        display: true,
+        position: 'top'
+      },
       tooltip: {
         ...chartOptions.plugins.tooltip,
         callbacks: {
           title: function(context) {
-            return `${timeRange.charAt(0).toUpperCase() + timeRange.slice(1)}: ${context[0].label}`;
+            return `Time: ${context[0].label}`;
+          },
+          label: function(context) {
+            return `Count: ${context.raw}`;
           }
+        }
+      }
+    },
+    scales: {
+      x: {
+        ...chartOptions.scales.x,
+        title: {
+          display: true,
+          text: timeRange === 'daily' ? 'Hour' : 'Date'
+        }
+      },
+      y: {
+        ...chartOptions.scales.y,
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: 'Number of Detections'
         }
       }
     }
   };
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
+
+        const response = await fetch(
+          `http://localhost:5001/api/admin/analytics/detailed?timeRange=${timeRange}&language=${language}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch detailed analytics');
+        }
+
+        const result = await response.json();
+        console.log('Raw API response:', result);
+        console.log('Time series data:', result.timeSeriesData);
+        
+        if (!result.timeSeriesData || result.timeSeriesData.length === 0) {
+          console.warn('No time series data received');
+        }
+
+        setData(result);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setError(error.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [timeRange, language]);
+
+  const handleDownload = async () => {
+    if (!data) return;
+    
+    try {
+      // Wait for all charts to be rendered
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Get chart canvases
+      const charts = {
+        trend: trendChartRef.current?.canvas?.toDataURL(),
+        sentiment: sentimentChartRef.current?.canvas?.toDataURL(),
+        words: wordChartRef.current?.canvas?.toDataURL()
+      };
+
+      await generateReport({ 
+        ...data,
+        charts,
+        reportDate: new Date().toLocaleString()
+      }, 'detailed');
+    } catch (error) {
+      console.error('Error generating report:', error);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-[50vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center h-[50vh]">
+        <p className="text-red-500">Error: {error}</p>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="flex justify-center items-center h-[50vh]">
+        <p>No data available</p>
+      </div>
+    );
+  }
+
+  console.log('Trend chart data:', trendChartData);
+  console.log('Sentiment chart data:', sentimentChartData);
+
+  // Before rendering the Line chart
+  console.log('Trend chart data being passed to Line component:', trendChartData);
+
   return (
-    <div className="space-y-6">
-      {/* Language Filter */}
+    <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <div className="flex gap-2">
-          {['both', 'filipino', 'english'].map((lang) => (
-            <Button
-              key={lang}
-              variant={selectedLanguage === lang ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedLanguage(lang)}
-              className={cn(
-                "capitalize transition-all duration-200",
-                selectedLanguage === lang 
-                  ? "bg-black/80 text-white hover:bg-black/90" 
-                  : "hover:bg-black/5"
-              )}
-            >
-              {lang}
-            </Button>
-          ))}
+        <h2 className="text-2xl font-semibold">Detailed Analysis</h2>
+        <DownloadButton onClick={handleDownload} isDarkMode={isDarkMode} />
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={refreshData}
-            disabled={isRefreshing}
-            className="gap-2"
-          >
-            <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-            Refresh Data
-          </Button>
-        </div>
+
+      {/* Filters */}
+      <div className="flex gap-4">
+        <Select value={timeRange} onValueChange={setTimeRange}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select time range" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="daily">Daily</SelectItem>
+            <SelectItem value="weekly">Weekly</SelectItem>
+            <SelectItem value="monthly">Monthly</SelectItem>
+            <SelectItem value="yearly">Yearly</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={language} onValueChange={setLanguage}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select language" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="both">Both Languages</SelectItem>
+            <SelectItem value="english">English</SelectItem>
+            <SelectItem value="filipino">Filipino</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Charts Grid */}
-      <div className={cn(
-        "grid gap-6",
-        expandedChart ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2"
-      )}>
+      {/* Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Sentiment Distribution */}
         <div className={cn(
           "border rounded-lg p-6 transition-all duration-300",
@@ -426,18 +489,18 @@ const DetailedView = ({ isDarkMode, mockData, timeSeriesData, wordFrequencyData,
           </div>
         </div>
 
-        {/* Time Series Line Chart */}
+        {/* Time Series Chart - Moved to bottom, full width */}
         <div className={cn(
           "border rounded-lg p-6 transition-all duration-300",
           isDarkMode 
             ? "border-white/10 bg-[#1A1A1A] shadow-lg shadow-black/20" 
             : "border-black/5 bg-white shadow-sm",
-          "lg:col-span-2"
+          "md:col-span-2" // Always full width
         )}>
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium">Trend Analysis</h3>
             <div className="flex gap-2">
-              {['daily', 'weekly', 'monthly'].map((range) => (
+              {['daily', 'weekly', 'monthly', 'yearly'].map((range) => (
                 <Button
                   key={range}
                   variant={timeRange === range ? "default" : "outline"}

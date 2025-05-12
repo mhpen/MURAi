@@ -22,26 +22,40 @@ const AdminLogin = () => {
         setStatus({ type: '', message: '' });
 
         try {
-            if (email === 'admin@gmail.com' && password === 'admin123') {
-                localStorage.setItem('userRole', 'admin');
-                localStorage.setItem('token', 'dummy-token');
+            const response = await fetch('http://localhost:5001/api/users/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, password }),
+                credentials: 'include'
+            });
 
-                if (rememberMe) {
-                    localStorage.setItem('rememberedEmail', email);
-                    localStorage.setItem('rememberMe', 'true');
-                } else {
-                    localStorage.removeItem('rememberedEmail');
-                    localStorage.setItem('rememberMe', 'false');
-                }
+            const data = await response.json();
 
-                navigate('/admin/dashboard');
-            } else {
-                throw new Error('Invalid credentials');
+            if (!response.ok) {
+                throw new Error(data.error || 'Login failed');
             }
+
+            // Store token and user info
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('userRole', data.user.role);
+
+            // Handle remember me
+            if (rememberMe) {
+                localStorage.setItem('rememberedEmail', email);
+                localStorage.setItem('rememberMe', 'true');
+            } else {
+                localStorage.removeItem('rememberedEmail');
+                localStorage.setItem('rememberMe', 'false');
+            }
+
+            // Redirect to dashboard
+            navigate('/admin/dashboard');
         } catch (error) {
             setStatus({
                 type: 'error',
-                message: 'Invalid credentials, please try again.'
+                message: error.message || 'Invalid credentials, please try again.'
             });
         } finally {
             setIsLoading(false);

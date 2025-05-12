@@ -4,14 +4,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Overview from './Overview';
 import DetailedView from './DetailedView';
-import { mockData, timeSeriesData, wordFrequencyData, sentimentData } from '@/data/mockData';
 
 const AdminDashboard = ({ isDarkMode }) => {
     const [isDetailedView, setIsDetailedView] = useState(false);
     
-    // Add console.log to debug
-    console.log('AdminDashboard Props:', { isDarkMode });
-
     return (
         <div className="p-8">
             <div className="max-w-7xl mx-auto">
@@ -35,18 +31,9 @@ const AdminDashboard = ({ isDarkMode }) => {
 
                 {/* Content */}
                 {isDetailedView ? (
-                    <DetailedView 
-                        isDarkMode={isDarkMode}
-                        mockData={mockData}
-                        timeSeriesData={timeSeriesData}
-                        wordFrequencyData={wordFrequencyData}
-                        sentimentData={sentimentData}
-                    />
+                    <DetailedView isDarkMode={isDarkMode} />
                 ) : (
-                    <Overview 
-                        isDarkMode={isDarkMode}
-                        mockData={mockData}
-                    />
+                    <Overview isDarkMode={isDarkMode} />
                 )}
             </div>
         </div>

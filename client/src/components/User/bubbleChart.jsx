@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, memo } from 'react';
+import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
 import { 
   Box, 
   Card, 
@@ -21,6 +21,8 @@ import {
   Slider,
   Divider,
   Slide,
+  CircularProgress,
+  Button,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
@@ -36,7 +38,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Logo from '../../assets/logo.png'; // Add your logo image
 
-const Dashboard = () => {
+const BubbleChart = () => {
   const [timeFrame, setTimeFrame] = useState('day');
   const [bubbleData, setBubbleData] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,6 +52,8 @@ const Dashboard = () => {
     reducedMotion: false,
   });
   const [isNavVisible, setIsNavVisible] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Sample data with more realistic inappropriate words
   const sampleData = {
@@ -186,7 +190,6 @@ const Dashboard = () => {
 
   const handleTimeFrameChange = (event) => {
     setTimeFrame(event.target.value);
-    processData(); // Regenerate positions when timeframe changes
   };
 
   const handleBubbleClick = (bubble) => {
@@ -200,9 +203,11 @@ const Dashboard = () => {
     setSearchTerm(event.target.value);
   };
 
-  const filteredBubbles = bubbleData.filter(bubble => 
-    bubble.word.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredBubbles = useMemo(() => {
+    return bubbleData.filter(bubble => 
+      bubble.word.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [bubbleData, searchTerm]);
 
   // Sample trend data
   const getTrendData = (word) => {
@@ -264,11 +269,154 @@ const Dashboard = () => {
             >
               {item.count}
             </Typography>
+            <Typography 
+              sx={{ 
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: '0.6rem',
+                mt: 0.2,
+              }}
+            >
+              {item.language}
+            </Typography>
           </>
         )}
       </Box>
     );
   });
+
+  const fetchBubbleData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      console.log('Fetching data with timeFrame:', timeFrame);
+
+      const response = await fetch(`http://localhost:5001/api/analytics/bubble-chart?timeFrame=${timeFrame}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch data');
+      }
+
+      const data = await response.json();
+      console.log('Received data:', data);
+      
+      if (!data.words || !Array.isArray(data.words)) {
+        throw new Error('Invalid data format received');
+      }
+
+      if (data.words.length === 0) {
+        setError('No data available');
+        return;
+      }
+
+      // Process the data for visualization
+      const processedData = data.words.map(item => ({
+        ...item,
+        x: Math.random() * 80 + 10,
+        y: Math.random() * 80 + 10,
+        velocityX: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
+        velocityY: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
+        color: getColorByCategory(item.category, item.severity)
+      }));
+
+      console.log('Processed data:', processedData);
+      setBubbleData(processedData);
+    } catch (error) {
+      console.error('Error fetching bubble data:', error);
+      setError(error.message || 'Failed to load data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [timeFrame, settings.reducedMotion]);
+
+  // Function to determine bubble color based on category and severity
+  const getColorByCategory = (category, severity) => {
+    const baseColors = {
+      profanity: '#FF4444',
+      slur: '#FF8800',
+      sexual: '#CC00CC'
+    };
+    
+    // Adjust color opacity based on severity (1-5)
+    const opacity = 0.4 + (severity * 0.12); // This will scale from 0.52 to 1
+    const baseColor = baseColors[category] || '#666666';
+    
+    // Convert hex to rgba
+    const r = parseInt(baseColor.slice(1,3), 16);
+    const g = parseInt(baseColor.slice(3,5), 16);
+    const b = parseInt(baseColor.slice(5,7), 16);
+    
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  };
+
+  useEffect(() => {
+    fetchBubbleData();
+  }, [fetchBubbleData, timeFrame]);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <Box sx={{ 
+        height: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center' 
+      }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <Box sx={{ 
+        height: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        color: 'error.main'
+      }}>
+        <Typography>{error}</Typography>
+      </Box>
+    );
+  }
+
+  // Show empty state
+  if (!isLoading && (!bubbleData.length || !filteredBubbles.length)) {
+    return (
+      <Box sx={{ 
+        height: '100vh', 
+        display: 'flex', 
+        flexDirection: 'column',
+        alignItems: 'center', 
+        justifyContent: 'center',
+        color: 'text.primary'
+      }}>
+        <Typography variant="h6">
+          {searchTerm ? 'No matching words found' : 'No data available'}
+        </Typography>
+        <Button 
+          onClick={fetchBubbleData} 
+          startIcon={<RefreshIcon />}
+          sx={{ mt: 2 }}
+        >
+          Refresh
+        </Button>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ 
@@ -293,7 +441,6 @@ const Dashboard = () => {
           transform: 'translateX(-50%)',
           zIndex: 11,
           cursor: 'pointer',
-          bgcolor: 'rgba(28, 28, 28, 0.85)',
           backdropFilter: 'blur(12px)',
           borderRadius: '12px',
           padding: '8px',
@@ -301,10 +448,7 @@ const Dashboard = () => {
           alignItems: 'center',
           justifyContent: 'center',
           transition: 'all 0.3s ease',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          '&:hover': {
-            bgcolor: 'rgba(40, 40, 40, 0.85)',
-          }
+          
         }}
       >
         {isNavVisible ? 
@@ -458,7 +602,7 @@ const Dashboard = () => {
             mt: { xs: 1, sm: 0 },
           }}>
             <IconButton 
-              onClick={processData}
+              onClick={fetchBubbleData}
               size="small"
               sx={{ 
                 color: 'rgba(255,255,255,0.7)', 
@@ -658,4 +802,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard; 
+export default BubbleChart; 

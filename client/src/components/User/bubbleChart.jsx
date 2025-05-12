@@ -37,6 +37,7 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Logo from '../../assets/logo.png'; // Add your logo image
+import { API_BASE_URL } from '../../config';
 
 const BubbleChart = () => {
   const [timeFrame, setTimeFrame] = useState('day');
@@ -286,9 +287,7 @@ const BubbleChart = () => {
 
   const fetchBubbleData = useCallback(async () => {
     try {
-      setIsLoading(true);
-      setError(null);
-      
+      console.log('Fetching from:', `${API_BASE_URL}/api/user/bubble-data`);
       const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('Authentication required');
@@ -296,11 +295,12 @@ const BubbleChart = () => {
 
       console.log('Fetching data with timeFrame:', timeFrame);
 
-      const response = await fetch(`https://murai-qgd8.onrender.com/api/analytics/bubble-chart?timeFrame=${timeFrame}`, {
+      const response = await fetch(`${API_BASE_URL}/api/user/bubble-data`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        }
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
       });
 
       if (!response.ok) {
@@ -332,11 +332,11 @@ const BubbleChart = () => {
 
       console.log('Processed data:', processedData);
       setBubbleData(processedData);
+      return processedData;
     } catch (error) {
       console.error('Error fetching bubble data:', error);
       setError(error.message || 'Failed to load data');
-    } finally {
-      setIsLoading(false);
+      return null;
     }
   }, [timeFrame, settings.reducedMotion]);
 
@@ -361,8 +361,22 @@ const BubbleChart = () => {
   };
 
   useEffect(() => {
-    fetchBubbleData();
-  }, [fetchBubbleData, timeFrame]);
+    const fetchData = async () => {
+      try {
+        console.log('Fetching from:', `${API_BASE_URL}/api/user/bubble-data`);
+        const result = await fetchBubbleData();
+        console.log('Received data:', result);
+        setBubbleData(result);
+      } catch (err) {
+        console.error('Bubble chart error:', err);
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   // Show loading state
   if (isLoading) {

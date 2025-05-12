@@ -20,7 +20,7 @@ import { ChevronDown, ChevronUp, Download, RefreshCw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateReport } from '@/utils/reportGenerator';
 import DownloadButton from '@/components/ui/DownloadButton';
-import { API_BASE_URL } from '../../config';
+import API_URL from '@/config/api';
 
 // Register Chart.js components
 ChartJS.register(
@@ -319,28 +319,28 @@ const DetailedView = ({ isDarkMode }) => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const token = localStorage.getItem('token');
-        
-        if (!token) {
-          throw new Error('No authentication token found');
-        }
-
-        const response = await fetch(`${API_BASE_URL}/api/admin/analytics/detailed`, {
+        const response = await fetch(`${API_URL}/admin/analytics/detailed`, {
+          credentials: 'include',
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          }
         });
 
         if (!response.ok) {
-          throw new Error('Failed to fetch data');
+          throw new Error('Failed to fetch detailed analytics');
         }
 
         const result = await response.json();
+        console.log('Raw API response:', result);
+        console.log('Time series data:', result.timeSeriesData);
+        
+        if (!result.timeSeriesData || result.timeSeriesData.length === 0) {
+          console.warn('No time series data received');
+        }
+
         setData(result);
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error:', error);
         setError(error.message);
       } finally {
         setIsLoading(false);
@@ -348,61 +348,26 @@ const DetailedView = ({ isDarkMode }) => {
     };
 
     fetchData();
-  }, [timeRange, language]);
+  }, []);
 
   const handleDownload = async () => {
     if (!data) return;
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for all charts to be rendered
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-      const getChartImage = (ref, title, labels) => {
-        try {
-          if (!ref.current) {
-            console.warn('Chart ref not available');
-            return null;
-          }
-          // Request higher quality canvas
-          const canvas = ref.current.canvas;
-          const scale = 2; // Double the resolution
-          const scaledCanvas = document.createElement('canvas');
-          scaledCanvas.width = canvas.width * scale;
-          scaledCanvas.height = canvas.height * scale;
-          const ctx = scaledCanvas.getContext('2d');
-          ctx.scale(scale, scale);
-          ctx.drawImage(canvas, 0, 0);
-          
-          return {
-            dataUrl: scaledCanvas.toDataURL('image/png', 1.0),
-            title,
-            labels
-          };
-        } catch (err) {
-          console.warn('Error getting chart image:', err);
-          return null;
-        }
-      };
-
+      // Get chart canvases
       const charts = {
-        trend: getChartImage(trendChartRef, 'Trend Analysis', {
-          title: 'Detection Trend Over Time',
-          labels: data.timeSeriesData?.map(item => item.time) || []
-        }),
-        sentiment: getChartImage(sentimentChartRef, 'Sentiment Distribution', {
-          title: 'Content Sentiment Analysis',
-          labels: ['Positive', 'Neutral', 'Negative']
-        }),
-        words: getChartImage(wordChartRef, 'Word Frequency', {
-          title: 'Most Flagged Words',
-          labels: data.wordFrequency?.map(item => item.word) || []
-        })
+        trend: trendChartRef.current?.canvas?.toDataURL(),
+        sentiment: sentimentChartRef.current?.canvas?.toDataURL(),
+        words: wordChartRef.current?.canvas?.toDataURL()
       };
 
       await generateReport({ 
         ...data,
         charts,
-        reportDate: new Date().toLocaleString(),
-        isDarkMode
+        reportDate: new Date().toLocaleString()
       }, 'detailed');
     } catch (error) {
       console.error('Error generating report:', error);

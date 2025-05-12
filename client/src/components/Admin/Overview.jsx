@@ -12,7 +12,7 @@ import {
 import KPICard from './KPICard';
 import { generateReport } from '@/utils/reportGenerator';
 import DownloadButton from '@/components/ui/DownloadButton';
-import { API_BASE_URL } from '../../config';
+import API_URL from '@/config/api';
 
 // Register Chart.js components
 ChartJS.register(
@@ -42,16 +42,17 @@ const Overview = ({ isDarkMode }) => {
           throw new Error('No authentication token found');
         }
 
-        const response = await fetch(`${API_BASE_URL}/api/admin/analytics/overview`, {
+        const response = await fetch(`${API_URL}/admin/analytics/overview`, {
+          credentials: 'include',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
-          },
-          credentials: 'include'
+          }
         });
 
         if (!response.ok) {
-          throw new Error('Failed to fetch data');
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch overview data');
         }
 
         const result = await response.json();
@@ -96,7 +97,7 @@ const Overview = ({ isDarkMode }) => {
         console.log('Transformed data:', transformedData);
         setData(transformedData);
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error:', error);
         setError(error.message);
       } finally {
         setIsLoading(false);
@@ -302,18 +303,8 @@ const Overview = ({ isDarkMode }) => {
               console.warn('Chart ref not available');
               return null;
             }
-            // Request higher quality canvas
-            const canvas = ref.current.canvas;
-            const scale = 2; // Double the resolution
-            const scaledCanvas = document.createElement('canvas');
-            scaledCanvas.width = canvas.width * scale;
-            scaledCanvas.height = canvas.height * scale;
-            const ctx = scaledCanvas.getContext('2d');
-            ctx.scale(scale, scale);
-            ctx.drawImage(canvas, 0, 0);
-            
             return {
-              dataUrl: scaledCanvas.toDataURL('image/png', 1.0),
+              dataUrl: ref.current.canvas.toDataURL('image/png'),
               title,
               labels
             };
@@ -326,25 +317,37 @@ const Overview = ({ isDarkMode }) => {
         const charts = {
           language: getChartImage(languageChartRef, 'Language Distribution', {
             title: 'Content Language Distribution',
-            labels: ['Filipino', 'English']
+            labels: ['Filipino', 'English'],
+            values: [data.languageBreakdown.filipino, data.languageBreakdown.english]
           }),
           sentiment: getChartImage(sentimentChartRef, 'Sentiment Analysis', {
             title: 'Content Sentiment Distribution',
-            labels: ['Positive', 'Neutral', 'Negative']
+            labels: ['Positive', 'Neutral', 'Negative'],
+            values: [
+              data.sentimentBreakdown.positive,
+              data.sentimentBreakdown.neutral,
+              data.sentimentBreakdown.negative
+            ]
           }),
           detection: getChartImage(detectionChartRef, 'Detection Methods', {
             title: 'Content Detection Methods',
-            labels: ['Automated', 'User Reports']
+            labels: ['Automated Detection', 'User Reports'],
+            values: [data.flaggedContent.automated, data.flaggedContent.userReported]
           }),
           accuracy: getChartImage(accuracyChartRef, 'Moderation Accuracy', {
             title: 'Moderation Decision Accuracy',
-            labels: ['True Positives', 'False Positives']
+            labels: ['True Positives', 'False Positives'],
+            values: [data.moderationStats.truePositives, data.moderationStats.falsePositives]
           })
         };
 
+        const validCharts = Object.fromEntries(
+          Object.entries(charts).filter(([_, value]) => value !== null)
+        );
+
         await generateReport({ 
           ...data,
-          charts,
+          charts: validCharts,
           reportDate: new Date().toLocaleString(),
           isDarkMode
         }, 'overview');

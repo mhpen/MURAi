@@ -296,7 +296,7 @@ const BubbleChart = () => {
 
       console.log('Fetching data with timeFrame:', timeFrame);
 
-      const response = await fetch(`http://localhost:5001/api/analytics/bubble-chart?timeFrame=${timeFrame}`, {
+      const response = await fetch(`https://murai-qgd8.onrender.com/api/analytics/bubble-chart?timeFrame=${timeFrame}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',

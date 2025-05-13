@@ -279,25 +279,37 @@ const BubbleChart = () => {
       setIsLoading(true);
       setError(null);
 
-      const { data } = await api.get('/api/analytics/bubble-chart', {
+      const response = await api.get('/api/analytics/bubble-chart', {
         params: { timeFrame }
       });
 
-      // Validate data
-      if (!data || !Array.isArray(data.words)) {
-        throw new Error('Invalid data received from server');
+      // Debug logs
+      console.log('API Response:', response);
+      console.log('Response data:', response.data);
+
+      // Check if response.data exists
+      if (!response.data) {
+        throw new Error('No data received from server');
       }
 
-      if (data.words.length === 0) {
+      // Handle both possible data structures: {words: [...]} or direct array
+      const wordsData = Array.isArray(response.data) ? response.data : response.data.words;
+
+      // Validate wordsData
+      if (!Array.isArray(wordsData)) {
+        throw new Error('Invalid data format received from server');
+      }
+
+      if (wordsData.length === 0) {
         setError('No data available');
         setBubbleData([]);
         return;
       }
 
-      const processedData = data.words.map(item => ({
+      const processedData = wordsData.map(item => ({
         word: item.word || 'Unknown',
-        count: item.count || 0,
-        severity: item.severity || 1,
+        count: parseInt(item.count) || 0, // Ensure count is a number
+        severity: parseInt(item.severity) || 1,
         category: item.category || 'unknown',
         x: Math.random() * 80 + 10,
         y: Math.random() * 80 + 10,
@@ -306,15 +318,17 @@ const BubbleChart = () => {
         color: getColorByCategory(item.category, item.severity)
       }));
 
+      console.log('Processed data:', processedData); // Debug log
       setBubbleData(processedData);
+
     } catch (error) {
       console.error('Error fetching bubble data:', error);
-      setError('Failed to load data. Please try again later.');
+      setError(`Failed to load data: ${error.message}`);
       setBubbleData([]);
     } finally {
       setIsLoading(false);
     }
-  }, [timeFrame, settings.reducedMotion]);
+  }, [timeFrame, settings.reducedMotion, getColorByCategory]);
 
   // Replace getTrendData with actual API call
   const getTrendData = async (word) => {

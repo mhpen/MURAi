@@ -134,18 +134,14 @@ const BubbleChart = () => {
         throw new Error('No data received from server');
       }
 
+      // Handle both possible data structures: {words: [...]} or direct array
       const wordsData = Array.isArray(response.data) ? response.data : response.data.words;
 
       if (!Array.isArray(wordsData)) {
         throw new Error('Invalid data format received from server');
       }
 
-      if (wordsData.length === 0) {
-        setError('No data available');
-        setBubbleData([]);
-        return;
-      }
-
+      // Remove the empty check here since we want to process even single items
       const processedData = wordsData.map(item => ({
         word: item.word || 'Unknown',
         count: parseInt(item.count) || 0,
@@ -367,7 +363,7 @@ const BubbleChart = () => {
   }
 
   // Show error state
-  if (error) {
+  if (error && !bubbleData.length) {  // Only show error if there's no data
     return (
       <Box sx={{ 
         height: '100vh', 
@@ -381,8 +377,8 @@ const BubbleChart = () => {
     );
   }
 
-  // Show empty state
-  if (!isLoading && (!bubbleData.length || !filteredBubbles.length)) {
+  // Show empty state - modified condition
+  if (!isLoading && bubbleData.length === 0) {  // Only check for empty bubbleData
     return (
       <Box sx={{ 
         height: '100vh', 
@@ -401,6 +397,31 @@ const BubbleChart = () => {
           sx={{ mt: 2 }}
         >
           Refresh
+        </Button>
+      </Box>
+    );
+  }
+
+  // Show filtered empty state
+  if (filteredBubbles.length === 0) {
+    return (
+      <Box sx={{ 
+        height: '100vh', 
+        display: 'flex', 
+        flexDirection: 'column',
+        alignItems: 'center', 
+        justifyContent: 'center',
+        color: 'text.primary'
+      }}>
+        <Typography variant="h6">
+          No matching words found
+        </Typography>
+        <Button 
+          onClick={() => setSearchTerm('')} 
+          startIcon={<RefreshIcon />}
+          sx={{ mt: 2 }}
+        >
+          Clear Search
         </Button>
       </Box>
     );

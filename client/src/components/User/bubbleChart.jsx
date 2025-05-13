@@ -51,14 +51,18 @@ const BubbleChart = () => {
   const [settings, setSettings] = useState({
     darkMode: true,
     bubbleColor: '#4CAF50',
+    backgroundColor: '#111111',
     showLabels: true,
-    animationSpeed: 1,
+    reducedMotion: false,
+    bounciness: 0.8,
+    colorByCount: false,
     showSeverity: false,
+    animationSpeed: 1,
+    collisions: true,
   });
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [actualData, setActualData] = useState([]);
 
   // Sample data with more realistic inappropriate words
   const sampleData = {
@@ -115,67 +119,37 @@ const BubbleChart = () => {
     };
   }, []);
 
-  // Fetch data from the API
-  const fetchData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const response = await api.get(`/api/analytics/bubble-chart?timeFrame=${timeFrame}`);
-      
-      // Transform API data to match required format
-      const transformedData = response.data.map(item => ({
-        word: item.word,
-        count: item.frequency || item.count,
-        severity: item.severity || 5, // Default severity if not provided
-      }));
-
-      setActualData(transformedData);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching data:', err);
-      setError(err.message);
-      // Fallback to sample data if API fails
-      setActualData(sampleData.words);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [timeFrame]);
-
-  // Update useEffect to fetch data
-  useEffect(() => {
-    fetchData();
-  }, [fetchData, timeFrame]);
-
-  // Modify processData to use actualData instead of sampleData
+  // Modify processData to properly handle reducedMotion
   const processData = useCallback(() => {
     const sizes = getResponsiveSizes(window.innerWidth);
     const speedMultiplier = settings.reducedMotion ? 0.1 : 0.2;
     
-    // Use actualData instead of sampleData
-    const maxCount = Math.max(...actualData.map(item => item.count));
+    // Calculate the maximum count to normalize sizes
+    const maxCount = Math.max(...sampleData.words.map(item => item.count));
     
+    // Calculate minimum and maximum bubble sizes
     const minSize = sizes.minSize;
     const maxSize = sizes.maxSize;
     
-    const newBubbleData = actualData.map(item => {
+    const newBubbleData = sampleData.words.map(item => {
+      // Calculate size based on count relative to maxCount
       const sizePercentage = item.count / maxCount;
       const size = minSize + (sizePercentage * (maxSize - minSize));
       
       return {
-        ...item,
+      ...item,
         ...getRandomPosition(),
-        size: size,
-        velocityX: (Math.random() - 0.5) * speedMultiplier,
-        velocityY: (Math.random() - 0.5) * speedMultiplier,
-        color: settings.colorByCount 
-          ? getColorByCount(item.count, maxCount)
-          : settings.showSeverity
-            ? getSeverityColor(item.severity)
-            : settings.bubbleColor
+        size: size, // This will now properly scale based on count
+      velocityX: (Math.random() - 0.5) * speedMultiplier,
+      velocityY: (Math.random() - 0.5) * speedMultiplier,
+        color: settings.darkMode 
+          ? settings.bubbleColor 
+          : settings.bubbleColor.replace('rgb', 'rgba').replace(')', ', 0.8)')
       };
     });
-
+    
     setBubbleData(newBubbleData);
-  }, [settings, getResponsiveSizes, actualData]);
+  }, [settings, getResponsiveSizes]);
 
   const updateBubblePositions = useCallback(() => {
     if (settings.reducedMotion) return;
@@ -391,64 +365,122 @@ const BubbleChart = () => {
     );
   });
 
-  // Add helper functions for colors
-  const getColorByCount = (count, maxCount) => {
-    const intensity = (count / maxCount) * 255;
-    return settings.darkMode
-      ? `rgba(${intensity}, ${intensity * 0.3}, ${intensity * 0.3}, 0.9)`
-      : `rgba(${intensity}, ${intensity * 0.3}, ${intensity * 0.3}, 0.7)`;
-  };
+  const fetchBubbleData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
 
-  const getSeverityColor = (severity) => {
-    const colors = {
-      high: '#ff4444',
-      medium: '#ffaa00',
-      low: '#ffdd00'
+      const { data } = await api.get('/api/analytics/bubble-chart', {
+        params: { timeFrame }
+      });
+
+      // Log the received data for debugging
+      console.log('Raw API response:', data);
+
+      // More flexible data validation
+      if (!data) {
+        throw new Error('No data received from server');
+      }
+
+      // If no words data, use sample data for development/testing
+      const wordsData = data.words || sampleData.words;
+      
+      if (!Array.isArray(wordsData)) {
+        throw new Error('Words data is not in the expected format');
+      }
+
+      if (wordsData.length === 0) {
+        setError('No data available');
+        setBubbleData([]);
+        return;
+      }
+
+      const processedData = wordsData.map(item => ({
+        word: item.word || 'Unknown',
+        count: item.count || 0,
+        severity: item.severity || 1,
+        category: item.category || 'unknown',
+        x: Math.random() * 80 + 10,
+        y: Math.random() * 80 + 10,
+        velocityX: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
+        velocityY: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
+        color: getColorByCategory(item.category, item.severity)
+      }));
+
+      setBubbleData(processedData);
+    } catch (error) {
+      console.error('Error fetching bubble data:', error);
+      // Use sample data as fallback in case of error
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Using sample data as fallback');
+        const processedSampleData = sampleData.words.map(item => ({
+          ...item,
+          x: Math.random() * 80 + 10,
+          y: Math.random() * 80 + 10,
+          velocityX: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
+          velocityY: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
+          color: getColorByCategory(item.category || 'unknown', item.severity || 1)
+        }));
+        setBubbleData(processedSampleData);
+        setError('Using sample data (development mode)');
+      } else {
+        setError(error.message);
+        setBubbleData([]);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [timeFrame, settings.reducedMotion]);
+
+  // Function to determine bubble color based on category and severity
+  const getColorByCategory = (category, severity) => {
+    const baseColors = {
+      profanity: '#FF4444',
+      slur: '#FF8800',
+      sexual: '#CC00CC'
     };
     
-    if (severity > 7) return colors.high;
-    if (severity > 4) return colors.medium;
-    return colors.low;
+    // Adjust color opacity based on severity (1-5)
+    const opacity = 0.4 + (severity * 0.12); // This will scale from 0.52 to 1
+    const baseColor = baseColors[category] || '#666666';
+    
+    // Convert hex to rgba
+    const r = parseInt(baseColor.slice(1,3), 16);
+    const g = parseInt(baseColor.slice(3,5), 16);
+    const b = parseInt(baseColor.slice(5,7), 16);
+    
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
   };
 
-  // Add refresh functionality
-  const handleRefresh = () => {
-    setIsLoading(true);
-    fetchData();
-  };
+  useEffect(() => {
+    fetchBubbleData();
+  }, [fetchBubbleData, timeFrame]);
 
-  // Update the UI to show loading state
+  // Show loading state
   if (isLoading) {
     return (
       <Box sx={{ 
+        height: '100vh', 
         display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center',
-        height: '100%',
-        minHeight: '400px'
+        alignItems: 'center', 
+        justifyContent: 'center' 
       }}>
         <CircularProgress />
       </Box>
     );
   }
 
+  // Show error state
   if (error) {
     return (
       <Box sx={{ 
+        height: '100vh', 
         display: 'flex', 
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 2,
-        padding: 4 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        color: 'error.main'
       }}>
-        <Typography color="error">Error: {error}</Typography>
-        <Button 
-          variant="contained" 
-          onClick={handleRefresh}
-          startIcon={<RefreshIcon />}
-        >
-          Retry
-        </Button>
+        <Typography>{error}</Typography>
       </Box>
     );
   }
@@ -468,7 +500,7 @@ const BubbleChart = () => {
           {searchTerm ? 'No matching words found' : 'No data available'}
         </Typography>
         <Button 
-          onClick={handleRefresh} 
+          onClick={fetchBubbleData} 
           startIcon={<RefreshIcon />}
           sx={{ mt: 2 }}
         >
@@ -662,7 +694,7 @@ const BubbleChart = () => {
             mt: { xs: 1, sm: 0 },
           }}>
             <IconButton 
-              onClick={handleRefresh}
+              onClick={fetchBubbleData}
               size="small"
               sx={{ 
                 color: 'rgba(255,255,255,0.7)', 
@@ -766,7 +798,6 @@ const BubbleChart = () => {
         }}>
           <Typography variant="h6" sx={{ mb: 3 }}>Settings</Typography>
           <List>
-            {/* Theme Setting */}
             <ListItem>
               <ListItemIcon>
                 <DarkModeIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
@@ -787,13 +818,12 @@ const BubbleChart = () => {
               />
             </ListItem>
 
-            {/* Bubble Color */}
             <ListItem>
               <ListItemIcon>
                 <ColorLensIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
               </ListItemIcon>
               <ListItemText 
-                primary="Bubble Color" 
+                primary="Bubble Color"
                 secondary="Choose default color"
                 secondaryTypographyProps={{
                   sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
@@ -809,13 +839,12 @@ const BubbleChart = () => {
                 style={{ 
                   width: '32px', 
                   height: '32px',
-                  padding: 0,
+                  padding: 0, 
                   border: 'none'
                 }}
               />
             </ListItem>
 
-            {/* Show Labels */}
             <ListItem>
               <ListItemIcon>
                 <TextFieldsIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
@@ -836,14 +865,96 @@ const BubbleChart = () => {
               />
             </ListItem>
 
-            {/* Animation Speed */}
+            <ListItem>
+              <ListItemIcon>
+                <SpeedIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
+              </ListItemIcon>
+              <ListItemText 
+                primary="Reduced Motion" 
+                secondary="Slower animations"
+                secondaryTypographyProps={{
+                  sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
+                }}
+              />
+              <Switch
+                checked={settings.reducedMotion}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  reducedMotion: e.target.checked 
+                }))}
+              />
+            </ListItem>
+
+            <ListItem>
+              <ListItemIcon>
+                <SpeedIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
+              </ListItemIcon>
+              <ListItemText 
+                primary="Bounciness" 
+                secondary="Bubble collision elasticity"
+                secondaryTypographyProps={{
+                  sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
+                }}
+              />
+              <Slider
+                value={settings.bounciness * 100}
+                onChange={(e, value) => setSettings(prev => ({ 
+                  ...prev, 
+                  bounciness: value / 100 
+                }))}
+                min={0}
+                max={100}
+                sx={{ width: 100 }}
+              />
+            </ListItem>
+
+            <ListItem>
+              <ListItemIcon>
+                <ColorLensIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
+              </ListItemIcon>
+              <ListItemText 
+                primary="Color by Count" 
+                secondary="Gradient based on frequency"
+                secondaryTypographyProps={{
+                  sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
+                }}
+              />
+              <Switch
+                checked={settings.colorByCount}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  colorByCount: e.target.checked 
+                }))}
+              />
+            </ListItem>
+
+            <ListItem>
+              <ListItemIcon>
+                <WarningIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
+              </ListItemIcon>
+              <ListItemText 
+                primary="Show Severity" 
+                secondary="Display severity indicator"
+                secondaryTypographyProps={{
+                  sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
+                }}
+              />
+              <Switch
+                checked={settings.showSeverity}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  showSeverity: e.target.checked 
+                }))}
+              />
+            </ListItem>
+
             <ListItem>
               <ListItemIcon>
                 <SpeedIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
               </ListItemIcon>
               <ListItemText 
                 primary="Animation Speed" 
-                secondary="Control movement speed"
+                secondary="Control bubble movement speed"
                 secondaryTypographyProps={{
                   sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
                 }}
@@ -860,23 +971,22 @@ const BubbleChart = () => {
               />
             </ListItem>
 
-            {/* Show Severity */}
             <ListItem>
               <ListItemIcon>
-                <WarningIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
+                <CompareArrowsIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
               </ListItemIcon>
               <ListItemText 
-                primary="Show Severity" 
-                secondary="Indicate word severity"
+                primary="Collisions" 
+                secondary="Enable bubble collisions"
                 secondaryTypographyProps={{
                   sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
                 }}
               />
               <Switch
-                checked={settings.showSeverity}
+                checked={settings.collisions}
                 onChange={(e) => setSettings(prev => ({ 
                   ...prev, 
-                  showSeverity: e.target.checked 
+                  collisions: e.target.checked 
                 }))}
               />
             </ListItem>

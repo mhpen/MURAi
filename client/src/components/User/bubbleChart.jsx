@@ -64,12 +64,29 @@ const BubbleChart = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const getRandomPosition = () => ({
-    x: Math.random() * 90 + 5, // Keep within 5-95% range
+  const getColorByCategory = useCallback((category, severity) => {
+    const baseColors = {
+      profanity: '#FF4444',
+      slur: '#FF8800',
+      sexual: '#CC00CC'
+    };
+    
+    const opacity = 0.4 + (severity * 0.12);
+    const baseColor = baseColors[category] || '#666666';
+    
+    const r = parseInt(baseColor.slice(1,3), 16);
+    const g = parseInt(baseColor.slice(3,5), 16);
+    const b = parseInt(baseColor.slice(5,7), 16);
+    
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }, []);
+
+  const getRandomPosition = useCallback(() => ({
+    x: Math.random() * 90 + 5,
     y: Math.random() * 90 + 5,
     velocityX: (Math.random() - 0.5) * 0.2 * settings.animationSpeed,
     velocityY: (Math.random() - 0.5) * 0.2 * settings.animationSpeed,
-  });
+  }), [settings.animationSpeed]);
 
   // Add responsive sizing helper
   const getResponsiveSizes = useCallback((screenWidth) => {
@@ -101,29 +118,73 @@ const BubbleChart = () => {
     };
   }, []);
 
-  // Modify processData to properly handle reducedMotion
+  const fetchBubbleData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await api.get('/api/analytics/bubble-chart', {
+        params: { timeFrame }
+      });
+
+      console.log('API Response:', response);
+      console.log('Response data:', response.data);
+
+      if (!response.data) {
+        throw new Error('No data received from server');
+      }
+
+      const wordsData = Array.isArray(response.data) ? response.data : response.data.words;
+
+      if (!Array.isArray(wordsData)) {
+        throw new Error('Invalid data format received from server');
+      }
+
+      if (wordsData.length === 0) {
+        setError('No data available');
+        setBubbleData([]);
+        return;
+      }
+
+      const processedData = wordsData.map(item => ({
+        word: item.word || 'Unknown',
+        count: parseInt(item.count) || 0,
+        severity: parseInt(item.severity) || 1,
+        category: item.category || 'unknown',
+        ...getRandomPosition(),
+        color: getColorByCategory(item.category, item.severity)
+      }));
+
+      console.log('Processed data:', processedData);
+      setBubbleData(processedData);
+
+    } catch (error) {
+      console.error('Error fetching bubble data:', error);
+      setError(`Failed to load data: ${error.message}`);
+      setBubbleData([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [timeFrame, settings.reducedMotion, getColorByCategory, getRandomPosition]);
+
   const processData = useCallback(() => {
     const sizes = getResponsiveSizes(window.innerWidth);
     const speedMultiplier = settings.reducedMotion ? 0.1 : 0.2;
     
-    // Calculate the maximum count to normalize sizes
     const maxCount = Math.max(...bubbleData.map(item => item.count));
-    
-    // Calculate minimum and maximum bubble sizes
     const minSize = sizes.minSize;
     const maxSize = sizes.maxSize;
     
     const newBubbleData = bubbleData.map(item => {
-      // Calculate size based on count relative to maxCount
       const sizePercentage = item.count / maxCount;
       const size = minSize + (sizePercentage * (maxSize - minSize));
       
       return {
-      ...item,
+        ...item,
         ...getRandomPosition(),
-        size: size, // This will now properly scale based on count
-      velocityX: (Math.random() - 0.5) * speedMultiplier,
-      velocityY: (Math.random() - 0.5) * speedMultiplier,
+        size: size,
+        velocityX: (Math.random() - 0.5) * speedMultiplier,
+        velocityY: (Math.random() - 0.5) * speedMultiplier,
         color: settings.darkMode 
           ? settings.bubbleColor 
           : settings.bubbleColor.replace('rgb', 'rgba').replace(')', ', 0.8)')
@@ -131,7 +192,7 @@ const BubbleChart = () => {
     });
     
     setBubbleData(newBubbleData);
-  }, [settings, getResponsiveSizes, bubbleData]);
+  }, [settings, getResponsiveSizes, bubbleData, getRandomPosition]);
 
   const updateBubblePositions = useCallback(() => {
     if (settings.reducedMotion) return;
@@ -274,62 +335,6 @@ const BubbleChart = () => {
     );
   }, [bubbleData, searchTerm]);
 
-  const fetchBubbleData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const response = await api.get('/api/analytics/bubble-chart', {
-        params: { timeFrame }
-      });
-
-      // Debug logs
-      console.log('API Response:', response);
-      console.log('Response data:', response.data);
-
-      // Check if response.data exists
-      if (!response.data) {
-        throw new Error('No data received from server');
-      }
-
-      // Handle both possible data structures: {words: [...]} or direct array
-      const wordsData = Array.isArray(response.data) ? response.data : response.data.words;
-
-      // Validate wordsData
-      if (!Array.isArray(wordsData)) {
-        throw new Error('Invalid data format received from server');
-      }
-
-      if (wordsData.length === 0) {
-        setError('No data available');
-        setBubbleData([]);
-        return;
-      }
-
-      const processedData = wordsData.map(item => ({
-        word: item.word || 'Unknown',
-        count: parseInt(item.count) || 0, // Ensure count is a number
-        severity: parseInt(item.severity) || 1,
-        category: item.category || 'unknown',
-        x: Math.random() * 80 + 10,
-        y: Math.random() * 80 + 10,
-        velocityX: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
-        velocityY: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
-        color: getColorByCategory(item.category, item.severity)
-      }));
-
-      console.log('Processed data:', processedData); // Debug log
-      setBubbleData(processedData);
-
-    } catch (error) {
-      console.error('Error fetching bubble data:', error);
-      setError(`Failed to load data: ${error.message}`);
-      setBubbleData([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [timeFrame, settings.reducedMotion, getColorByCategory]);
-
   // Replace getTrendData with actual API call
   const getTrendData = async (word) => {
     try {
@@ -341,26 +346,6 @@ const BubbleChart = () => {
       console.error('Error fetching trend data:', error);
       return [];
     }
-  };
-
-  // Function to determine bubble color based on category and severity
-  const getColorByCategory = (category, severity) => {
-    const baseColors = {
-      profanity: '#FF4444',
-      slur: '#FF8800',
-      sexual: '#CC00CC'
-    };
-    
-    // Adjust color opacity based on severity (1-5)
-    const opacity = 0.4 + (severity * 0.12); // This will scale from 0.52 to 1
-    const baseColor = baseColors[category] || '#666666';
-    
-    // Convert hex to rgba
-    const r = parseInt(baseColor.slice(1,3), 16);
-    const g = parseInt(baseColor.slice(3,5), 16);
-    const b = parseInt(baseColor.slice(5,7), 16);
-    
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
   };
 
   useEffect(() => {

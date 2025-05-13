@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import logo from "../../assets/logo.png";
+import apiClient from '../../services/api.service';
 
 const AdminLogin = () => {
     const [email, setEmail] = useState(() => localStorage.getItem('rememberedEmail') || '');
@@ -22,20 +23,12 @@ const AdminLogin = () => {
         setStatus({ type: '', message: '' });
 
         try {
-            const response = await fetch('http://localhost:5001/api/users/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email, password }),
-                credentials: 'include'
+            const response = await apiClient.post('/api/users/login', {
+                email,
+                password
             });
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Login failed');
-            }
+            const data = response.data;
 
             // Store token and user info
             localStorage.setItem('token', data.token);
@@ -53,9 +46,10 @@ const AdminLogin = () => {
             // Redirect to dashboard
             navigate('/admin/dashboard');
         } catch (error) {
+            console.error('Login error:', error);
             setStatus({
                 type: 'error',
-                message: error.message || 'Invalid credentials, please try again.'
+                message: error.response?.data?.error || error.message || 'Invalid credentials, please try again.'
             });
         } finally {
             setIsLoading(false);

@@ -37,7 +37,7 @@ const Overview = ({ isDarkMode }) => {
       try {
         setIsLoading(true);
         
-        const response = await apiClient.get('/admin/analytics/overview');
+        const response = await apiClient.get('/api/admin/analytics/overview');
 
         const result = response.data;
         console.log('Raw API response:', result);

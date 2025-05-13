@@ -321,7 +321,7 @@ const DetailedView = ({ isDarkMode }) => {
         setIsLoading(true);
         
         const response = await apiClient.get(
-          `/admin/analytics/detailed`,
+          `/api/admin/analytics/detailed`,
           {
             params: {
               timeRange,

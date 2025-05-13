@@ -290,7 +290,7 @@ const BubbleChart = () => {
       setIsLoading(true);
       setError(null);
       
-      const response = await apiClient.get(`/analytics/bubble-chart`, {
+      const response = await apiClient.get(`/api/analytics/bubble-chart`, {
         params: { timeFrame }
       });
 

@@ -6,6 +6,8 @@ const apiClient = axios.create(API_CONFIG);
 // Request interceptor
 apiClient.interceptors.request.use(
   (config) => {
+    console.log('Request URL:', config.url);
+    console.log('Request Config:', config);
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -13,16 +15,20 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error) => {
+    console.error('Request Error:', error);
     return Promise.reject(error);
   }
 );
 
 // Response interceptor
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('Response:', response);
+    return response;
+  },
   (error) => {
+    console.error('Response Error:', error.response || error);
     if (error.response?.status === 401) {
-      // Handle unauthorized access
       localStorage.removeItem('token');
       window.location.href = '/login';
     }

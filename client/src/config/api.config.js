@@ -5,5 +5,7 @@ export const API_CONFIG = {
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true
+  withCredentials: true,
+  timeout: 10000,
+  validateStatus: status => status >= 200 && status < 500
 }; 

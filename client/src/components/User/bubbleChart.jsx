@@ -285,7 +285,7 @@ const BubbleChart = () => {
     );
   });
 
-  const fetchBubbleData = useCallback(async () => {
+  const fetchBubbleData = useCallback(async (retryCount = 0) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -320,7 +320,19 @@ const BubbleChart = () => {
       setBubbleData(processedData);
     } catch (error) {
       console.error('Error fetching bubble data:', error);
-      setError(error.response?.data?.error || error.message || 'Failed to load data');
+      
+      // Retry logic for network errors
+      if (!error.response && retryCount < 3) {
+        console.log(`Retrying request (${retryCount + 1}/3)...`);
+        setTimeout(() => fetchBubbleData(retryCount + 1), 1000 * (retryCount + 1));
+        return;
+      }
+
+      setError(
+        error.response?.data?.error || 
+        error.message || 
+        'Failed to load data. Please try again later.'
+      );
     } finally {
       setIsLoading(false);
     }

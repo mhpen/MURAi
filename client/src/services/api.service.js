@@ -27,11 +27,22 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('Response Error:', error.response || error);
-    if (error.response?.status === 401) {
+    console.error('Response Error:', error);
+    
+    // Network or server error
+    if (!error.response) {
+      return Promise.reject({
+        message: 'Network error - please check your connection',
+        status: 'error'
+      });
+    }
+
+    // Server returned an error response
+    if (error.response.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/login';
     }
+
     return Promise.reject(error);
   }
 );

@@ -20,7 +20,7 @@ import { ChevronDown, ChevronUp, Download, RefreshCw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateReport } from '@/utils/reportGenerator';
 import DownloadButton from '@/components/ui/DownloadButton';
-import apiClient from '../../services/api.service';
+import api from '@/utils/api';
 
 // Register Chart.js components
 ChartJS.register(
@@ -320,28 +320,20 @@ const DetailedView = ({ isDarkMode }) => {
       try {
         setIsLoading(true);
         
-        const response = await apiClient.get(
-          `/api/admin/analytics/detailed`,
-          {
-            params: {
-              timeRange,
-              language
-            }
-          }
-        );
+        const { data } = await api.get('/api/admin/analytics/detailed', {
+          params: { timeRange, language }
+        });
 
-        const result = response.data;
-        console.log('Raw API response:', result);
-        console.log('Time series data:', result.timeSeriesData);
+        console.log('Time series data:', data.timeSeriesData);
         
-        if (!result.timeSeriesData || result.timeSeriesData.length === 0) {
+        if (!data.timeSeriesData || data.timeSeriesData.length === 0) {
           console.warn('No time series data received');
         }
 
-        setData(result);
+        setData(data);
       } catch (error) {
         console.error('Error fetching data:', error);
-        setError(error.response?.data?.error || error.message);
+        setError(error.message);
       } finally {
         setIsLoading(false);
       }

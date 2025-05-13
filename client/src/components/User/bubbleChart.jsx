@@ -37,7 +37,7 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Logo from '../../assets/logo.png'; // Add your logo image
-import apiClient from '../../services/api.service';
+import api from '@/utils/api';
 
 const BubbleChart = () => {
   const [timeFrame, setTimeFrame] = useState('day');
@@ -289,14 +289,11 @@ const BubbleChart = () => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      const response = await apiClient.get(`/api/analytics/bubble-chart`, {
+
+      const { data } = await api.get('/api/analytics/bubble-chart', {
         params: { timeFrame }
       });
 
-      const data = response.data;
-      console.log('Received data:', data);
-      
       if (!data.words || !Array.isArray(data.words)) {
         throw new Error('Invalid data format received');
       }
@@ -306,7 +303,6 @@ const BubbleChart = () => {
         return;
       }
 
-      // Process the data for visualization
       const processedData = data.words.map(item => ({
         ...item,
         x: Math.random() * 80 + 10,
@@ -316,11 +312,10 @@ const BubbleChart = () => {
         color: getColorByCategory(item.category, item.severity)
       }));
 
-      console.log('Processed data:', processedData);
       setBubbleData(processedData);
     } catch (error) {
       console.error('Error fetching bubble data:', error);
-      setError(error.response?.data?.error || error.message || 'Failed to load data');
+      setError(error.message);
     } finally {
       setIsLoading(false);
     }

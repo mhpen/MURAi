@@ -12,7 +12,7 @@ import {
 import KPICard from './KPICard';
 import { generateReport } from '@/utils/reportGenerator';
 import DownloadButton from '@/components/ui/DownloadButton';
-import apiClient from '../../services/api.service';
+import api from '@/utils/api';
 
 // Register Chart.js components
 ChartJS.register(
@@ -36,10 +36,8 @@ const Overview = ({ isDarkMode }) => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        
-        const response = await apiClient.get('/api/admin/analytics/overview');
 
-        const result = response.data;
+        const { data: result } = await api.get('/api/admin/analytics/overview');
         console.log('Raw API response:', result);
 
         // Transform data with defaults for all fields
@@ -82,7 +80,7 @@ const Overview = ({ isDarkMode }) => {
         setData(transformedData);
       } catch (error) {
         console.error('Error fetching overview data:', error);
-        setError(error.response?.data?.error || error.message);
+        setError(error.message);
       } finally {
         setIsLoading(false);
       }

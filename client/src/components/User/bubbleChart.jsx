@@ -37,7 +37,7 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Logo from '../../assets/logo.png'; // Add your logo image
-import API_URL from '@/config/api';
+import apiClient from '../../services/api.service';
 
 const BubbleChart = () => {
   const [timeFrame, setTimeFrame] = useState('day');
@@ -112,18 +112,11 @@ const BubbleChart = () => {
   }, []);
 
   // Modify processData to properly handle reducedMotion
-  const processData = useCallback((data) => {
-    if (!data || !Array.isArray(data)) {
-      return {
-        nodes: [],
-        links: []
-      };
-    }
-    
+  const processData = useCallback(() => {
     const sizes = getResponsiveSizes(window.innerWidth);
     const speedMultiplier = settings.reducedMotion ? 0 : 0.2; // Change 0.1 to 0
     
-    const newBubbleData = data.map(item => ({
+    const newBubbleData = sampleData.words.map(item => ({
       ...item,
       x: Math.random() * 80 + 10,
       y: Math.random() * 80 + 10,
@@ -135,10 +128,7 @@ const BubbleChart = () => {
       velocityY: (Math.random() - 0.5) * speedMultiplier,
     }));
     
-    return {
-      nodes: newBubbleData,
-      links: []
-    };
+    setBubbleData(newBubbleData);
   }, [settings.reducedMotion, settings.highContrast, settings.bubbleColor, getResponsiveSizes]);
 
   const updateBubblePositions = useCallback(() => {
@@ -171,16 +161,16 @@ const BubbleChart = () => {
   // Add window resize handler
   useEffect(() => {
     const handleResize = () => {
-      processData(bubbleData);
+      processData();
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [processData, bubbleData]);
+  }, [processData]);
 
   // Also modify the animation effect to properly handle reducedMotion
   useEffect(() => {
-    processData(bubbleData);
+    processData();
     let animationId;
     
     const animate = () => {
@@ -197,7 +187,7 @@ const BubbleChart = () => {
         cancelAnimationFrame(animationId);
       }
     };
-  }, [processData, updateBubblePositions, settings.reducedMotion, bubbleData]); // Add settings.reducedMotion to dependencies
+  }, [processData, updateBubblePositions, settings.reducedMotion]); // Add settings.reducedMotion to dependencies
 
   const handleTimeFrameChange = (event) => {
     setTimeFrame(event.target.value);
@@ -295,29 +285,46 @@ const BubbleChart = () => {
     );
   });
 
-  const fetchBubbleData = async () => {
+  const fetchBubbleData = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/user/bubble-data`, {
-        credentials: 'include',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        }
+      setIsLoading(true);
+      setError(null);
+      
+      const response = await apiClient.get(`/analytics/bubble-chart`, {
+        params: { timeFrame }
       });
 
-      if (!response.ok) {
-        throw new Error(response.statusText);
+      const data = response.data;
+      console.log('Received data:', data);
+      
+      if (!data.words || !Array.isArray(data.words)) {
+        throw new Error('Invalid data format received');
       }
 
-      const data = await response.json();
-      if (!data) {
-        return []; // Return empty array instead of null
+      if (data.words.length === 0) {
+        setError('No data available');
+        return;
       }
-      return data;
+
+      // Process the data for visualization
+      const processedData = data.words.map(item => ({
+        ...item,
+        x: Math.random() * 80 + 10,
+        y: Math.random() * 80 + 10,
+        velocityX: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
+        velocityY: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
+        color: getColorByCategory(item.category, item.severity)
+      }));
+
+      console.log('Processed data:', processedData);
+      setBubbleData(processedData);
     } catch (error) {
       console.error('Error fetching bubble data:', error);
-      return []; // Return empty array on error
+      setError(error.response?.data?.error || error.message || 'Failed to load data');
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [timeFrame, settings.reducedMotion]);
 
   // Function to determine bubble color based on category and severity
   const getColorByCategory = (category, severity) => {

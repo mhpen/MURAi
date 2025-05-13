@@ -12,7 +12,7 @@ import {
 import KPICard from './KPICard';
 import { generateReport } from '@/utils/reportGenerator';
 import DownloadButton from '@/components/ui/DownloadButton';
-import API_URL from '@/config/api';
+import apiClient from '../../services/api.service';
 
 // Register Chart.js components
 ChartJS.register(
@@ -36,26 +36,10 @@ const Overview = ({ isDarkMode }) => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const token = localStorage.getItem('token');
         
-        if (!token) {
-          throw new Error('No authentication token found');
-        }
+        const response = await apiClient.get('/admin/analytics/overview');
 
-        const response = await fetch(`${API_URL}/admin/analytics/overview`, {
-          credentials: 'include',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to fetch overview data');
-        }
-
-        const result = await response.json();
+        const result = response.data;
         console.log('Raw API response:', result);
 
         // Transform data with defaults for all fields
@@ -97,8 +81,8 @@ const Overview = ({ isDarkMode }) => {
         console.log('Transformed data:', transformedData);
         setData(transformedData);
       } catch (error) {
-        console.error('Error:', error);
-        setError(error.message);
+        console.error('Error fetching overview data:', error);
+        setError(error.response?.data?.error || error.message);
       } finally {
         setIsLoading(false);
       }

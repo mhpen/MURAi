@@ -90,7 +90,7 @@ export const generateReport = async (data, type = 'overview') => {
     // Second page - All charts
     if (data.charts && Object.keys(data.charts).length > 0) {
       doc.addPage();
-
+      
       // Charts page header
       doc.setFillColor(248, 249, 250);
       doc.rect(0, 0, pageWidth, 60, 'F');
@@ -99,29 +99,45 @@ export const generateReport = async (data, type = 'overview') => {
       doc.setFont(undefined, 'bold');
       doc.text('Visualization Analysis', margin, 35);
 
-      // Fixed dimensions for charts
-      const chartContainerWidth = (contentWidth - 20) / 2; // 20px gap between charts
-      const chartContainerHeight = 280; // Fixed height for each chart container
-      const chartSize = 200; // Fixed size for the chart itself
-
-      Object.entries(data.charts).forEach(([name, chartData], index) => {
-        if (chartData?.dataUrl && typeof chartData.dataUrl === 'string') {
-          // Calculate position in 2x2 grid
-          const row = Math.floor(index / 2);
-          const col = index % 2;
-          const xPos = margin + (col * (chartContainerWidth + 20));
-          const yStart = margin + 80 + (row * (chartContainerHeight + 20));
-
-          // Chart container
+      // Fixed dimensions for charts - no stretching
+      const chartContainerWidth = contentWidth / 2 - 10;
+      const chartContainerHeight = 260; // Fixed height
+      const chartPadding = 15;
+      const chartWidth = chartContainerWidth - (chartPadding * 2);
+      const chartHeight = 160; // Fixed chart height
+      
+      // Position tracking
+      let currentY = margin + 70;
+      
+      // Process charts in rows of 2
+      const chartEntries = Object.entries(data.charts).filter(([_, chartData]) => 
+        chartData?.dataUrl && typeof chartData.dataUrl === 'string'
+      );
+      
+      for (let i = 0; i < chartEntries.length; i += 2) {
+        // Check if we need a new page
+        if (currentY + chartContainerHeight > doc.internal.pageSize.height - margin) {
+          doc.addPage();
+          currentY = margin + 20;
+        }
+        
+        // Process up to 2 charts per row
+        for (let j = 0; j < 2; j++) {
+          if (i + j >= chartEntries.length) break;
+          
+          const [name, chartData] = chartEntries[i + j];
+          const xPos = margin + (j * (chartContainerWidth + 20));
+          
+          // Chart container with fixed height
           doc.setFillColor(252, 252, 253);
-          doc.roundedRect(xPos, yStart, chartContainerWidth, chartContainerHeight, 3, 3, 'F');
-
+          doc.roundedRect(xPos, currentY, chartContainerWidth, chartContainerHeight, 3, 3, 'F');
+          
           // Chart title
           doc.setTextColor(33, 37, 41);
           doc.setFontSize(14);
           doc.setFont(undefined, 'bold');
-          doc.text(chartData.labels.title, xPos + 15, yStart + 25);
-
+          doc.text(chartData.labels.title, xPos + chartPadding, currentY + 25);
+          
           // Description
           doc.setFontSize(10);
           doc.setFont(undefined, 'normal');
@@ -132,62 +148,50 @@ export const generateReport = async (data, type = 'overview') => {
             detection: 'Detection method breakdown',
             accuracy: 'Moderation accuracy metrics'
           };
-          doc.text(descriptions[name] || '', xPos + 15, yStart + 45);
-
-          // Center chart in container
-          const chartX = xPos + (chartContainerWidth - chartSize) / 2;
-          const chartY = yStart + 60;
-
-          // Add chart with fixed square dimensions
+          doc.text(descriptions[name] || '', xPos + chartPadding, currentY + 45);
+          
+          // Add chart with fixed dimensions
+          const chartX = xPos + chartPadding;
+          const chartY = currentY + 60;
+          
           try {
-            doc.addImage(
-              chartData.dataUrl,
-              'PNG',
-              chartX,
-              chartY,
-              chartSize,
-              chartSize,
-              undefined,
-              'FAST'
-            );
+            doc.addImage(chartData.dataUrl, 'PNG', chartX, chartY, chartWidth, chartHeight);
           } catch (err) {
             console.warn('Error adding chart:', err);
           }
-
-          // Legend
+          
+          // Add legend
           if (chartData.labels?.labels?.length > 0) {
-            const legendStartY = chartY + chartSize + 10;
-            const legendSpacing = chartSize / chartData.labels.labels.length;
-
-            chartData.labels.labels.forEach((label, i) => {
-              const value = chartData.labels.values[i];
-              const legendX = chartX + (i * legendSpacing);
-
-              // Color box
-              doc.setFillColor(...getChartColor(name, i, isDarkMode));
-              doc.roundedRect(legendX, legendStartY, 8, 8, 1, 1, 'F');
-
+            const legendY = chartY + chartHeight + 10;
+            const legendItemWidth = chartWidth / chartData.labels.labels.length;
+            
+            chartData.labels.labels.forEach((label, idx) => {
+              const value = chartData.labels.values[idx];
+              const legendX = chartX + (idx * legendItemWidth);
+              
+              // Color indicator
+              doc.setFillColor(...getChartColor(name, idx, isDarkMode));
+              doc.rect(legendX, legendY, 8, 8, 'F');
+              
               // Label and value
               const total = chartData.labels.values.reduce((a, b) => a + b, 0);
               const percentage = ((value / total) * 100).toFixed(1);
-
-              // Vertical layout for legend items
+              
               doc.setTextColor(33, 37, 41);
-              doc.setFontSize(9);
+              doc.setFontSize(8);
               doc.setFont(undefined, 'bold');
-              doc.text(label, legendX + 12, legendStartY + 8);
-
+              doc.text(label, legendX + 12, legendY + 8);
+              
               doc.setFont(undefined, 'normal');
               doc.setTextColor(108, 117, 125);
-              doc.text(
-                `${value} (${percentage}%)`,
-                legendX + 12,
-                legendStartY + 20
-              );
+              doc.text(`${value} (${percentage}%)`, legendX + 12, legendY + 18);
             });
           }
         }
-      });
+        
+        // Move to next row
+        currentY += chartContainerHeight + 20;
+      }
     }
 
     // Save the PDF

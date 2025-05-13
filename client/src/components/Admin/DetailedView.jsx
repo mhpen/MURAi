@@ -20,7 +20,7 @@ import { ChevronDown, ChevronUp, Download, RefreshCw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateReport } from '@/utils/reportGenerator';
 import DownloadButton from '@/components/ui/DownloadButton';
-import API_URL from '@/config/api';
+import apiClient from '../../services/api.service';
 
 // Register Chart.js components
 ChartJS.register(
@@ -319,18 +319,18 @@ const DetailedView = ({ isDarkMode }) => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch(`${API_URL}/admin/analytics/detailed`, {
-          credentials: 'include',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        
+        const response = await apiClient.get(
+          `/admin/analytics/detailed`,
+          {
+            params: {
+              timeRange,
+              language
+            }
           }
-        });
+        );
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch detailed analytics');
-        }
-
-        const result = await response.json();
+        const result = response.data;
         console.log('Raw API response:', result);
         console.log('Time series data:', result.timeSeriesData);
         
@@ -340,15 +340,15 @@ const DetailedView = ({ isDarkMode }) => {
 
         setData(result);
       } catch (error) {
-        console.error('Error:', error);
-        setError(error.message);
+        console.error('Error fetching data:', error);
+        setError(error.response?.data?.error || error.message);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchData();
-  }, []);
+  }, [timeRange, language]);
 
   const handleDownload = async () => {
     if (!data) return;

@@ -80,7 +80,10 @@ const DetailedView = ({ isDarkMode }) => {
   // Chart control component
   const ChartControls = ({ title, chartId, chartRef }) => (
     <div className="flex justify-between items-center mb-4">
-      <h3 className="text-lg font-medium">{title}</h3>
+      <h3 className={cn(
+        "text-lg font-medium",
+        isDarkMode ? "text-white" : "text-black"
+      )}>{title}</h3>
       <div className="flex items-center gap-2">
         <button 
           className={cn(
@@ -170,26 +173,18 @@ const DetailedView = ({ isDarkMode }) => {
     scales: {
       x: {
         grid: {
-          color: isDarkMode ? CHART_COLORS.monochrome.white[10] : CHART_COLORS.monochrome.black[10],
+          color: isDarkMode ? CHART_COLORS.monochrome.white[10] : CHART_COLORS.monochrome.black[20],
         },
         ticks: {
-          color: isDarkMode ? CHART_COLORS.monochrome.white[60] : CHART_COLORS.monochrome.black[60],
-          font: {
-            family: "'Inter', sans-serif",
-            size: 12
-          }
+          color: isDarkMode ? CHART_COLORS.monochrome.white[60] : CHART_COLORS.monochrome.black[70],
         }
       },
       y: {
         grid: {
-          color: isDarkMode ? CHART_COLORS.monochrome.white[10] : CHART_COLORS.monochrome.black[10],
+          color: isDarkMode ? CHART_COLORS.monochrome.white[10] : CHART_COLORS.monochrome.black[20],
         },
         ticks: {
-          color: isDarkMode ? CHART_COLORS.monochrome.white[60] : CHART_COLORS.monochrome.black[60],
-          font: {
-            family: "'Inter', sans-serif",
-            size: 12
-          }
+          color: isDarkMode ? CHART_COLORS.monochrome.white[60] : CHART_COLORS.monochrome.black[70],
         }
       }
     },
@@ -399,21 +394,27 @@ const DetailedView = ({ isDarkMode }) => {
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold">Detailed Analysis</h2>
+        <h2 className={cn(
+          "text-2xl font-semibold",
+          isDarkMode ? "text-white" : "text-black"
+        )}>Detailed Analysis</h2>
         <DownloadButton onClick={handleDownload} isDarkMode={isDarkMode} />
-        </div>
+      </div>
 
       {/* Filters */}
       <div className="flex gap-4">
         <Select value={timeRange} onValueChange={setTimeRange}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className={cn(
+            "w-[180px]",
+            isDarkMode ? "text-white" : "text-black"
+          )}>
             <SelectValue placeholder="Select time range" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="daily">Daily</SelectItem>
-            <SelectItem value="weekly">Weekly</SelectItem>
-            <SelectItem value="monthly">Monthly</SelectItem>
-            <SelectItem value="yearly">Yearly</SelectItem>
+            <SelectItem value="daily" className={isDarkMode ? "text-white" : "text-black"}>Daily</SelectItem>
+            <SelectItem value="weekly" className={isDarkMode ? "text-white" : "text-black"}>Weekly</SelectItem>
+            <SelectItem value="monthly" className={isDarkMode ? "text-white" : "text-black"}>Monthly</SelectItem>
+            <SelectItem value="yearly" className={isDarkMode ? "text-white" : "text-black"}>Yearly</SelectItem>
           </SelectContent>
         </Select>
 
@@ -482,7 +483,10 @@ const DetailedView = ({ isDarkMode }) => {
           "md:col-span-2" // Always full width
         )}>
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium">Trend Analysis</h3>
+            <h3 className={cn(
+              "text-lg font-medium",
+              isDarkMode ? "text-white" : "text-black"
+            )}>Trend Analysis</h3>
             <div className="flex gap-2">
               {['daily', 'weekly', 'monthly', 'yearly'].map((range) => (
                 <Button

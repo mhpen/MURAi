@@ -51,6 +51,11 @@ const BubbleChart = () => {
     backgroundColor: '#111111',
     showLabels: true,
     reducedMotion: false,
+    bounciness: 0.8,
+    colorByCount: false,
+    showSeverity: false,
+    animationSpeed: 1,
+    collisions: true,
   });
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -114,49 +119,154 @@ const BubbleChart = () => {
   // Modify processData to properly handle reducedMotion
   const processData = useCallback(() => {
     const sizes = getResponsiveSizes(window.innerWidth);
-    const speedMultiplier = settings.reducedMotion ? 0 : 0.2; // Change 0.1 to 0
+    const speedMultiplier = settings.reducedMotion ? 0 : 0.2;
     
-    const newBubbleData = sampleData.words.map(item => ({
-      ...item,
-      x: Math.random() * 80 + 10,
-      y: Math.random() * 80 + 10,
-      size: Math.max(sizes.minSize, Math.min(sizes.maxSize, item.count * sizes.bubbleBase)),
-      color: settings.highContrast ? 
-        (item.severity > 5 ? '#FF0000' : '#00FF00') : 
-        settings.bubbleColor,
-      velocityX: (Math.random() - 0.5) * speedMultiplier,
-      velocityY: (Math.random() - 0.5) * speedMultiplier,
-    }));
+    // Calculate the maximum count to normalize sizes
+    const maxCount = Math.max(...sampleData.words.map(item => item.count));
+    
+    // Calculate minimum and maximum bubble sizes
+    const minSize = 40;
+    const maxSize = 100;
+    
+    // Function to calculate size based on count
+    const calculateSize = (count) => {
+      return minSize + ((count / maxCount) * (maxSize - minSize));
+    };
+
+    // Grid-based positioning to prevent overlaps
+    const gridSize = 10; // 10x10 grid
+    const cellWidth = 100 / gridSize;
+    const cellHeight = 100 / gridSize;
+    const usedCells = new Set();
+
+    const findAvailableCell = (size) => {
+      const padding = size / window.innerWidth * 100; // Convert size to percentage
+      
+      for (let i = 0; i < gridSize; i++) {
+        for (let j = 0; j < gridSize; j++) {
+          const cellKey = `${i}-${j}`;
+          if (!usedCells.has(cellKey)) {
+            // Calculate position in percentages
+            const x = (i * cellWidth) + (cellWidth / 2);
+            const y = (j * cellHeight) + (cellHeight / 2);
+            
+            // Check if this position would overlap with any existing bubbles
+            let overlaps = false;
+            for (const existingCell of usedCells) {
+              const [existingI, existingJ] = existingCell.split('-').map(Number);
+              const existingX = (existingI * cellWidth) + (cellWidth / 2);
+              const existingY = (existingJ * cellHeight) + (cellHeight / 2);
+              
+              const distance = Math.sqrt(
+                Math.pow(x - existingX, 2) + 
+                Math.pow(y - existingY, 2)
+              );
+              
+              if (distance < padding * 2) {
+                overlaps = true;
+                break;
+              }
+            }
+            
+            if (!overlaps) {
+              usedCells.add(cellKey);
+              return { x, y };
+            }
+          }
+        }
+      }
+      // Fallback position if no space found
+      return { x: 50, y: 50 };
+    };
+
+    const newBubbleData = sampleData.words.map(item => {
+      const size = calculateSize(item.count);
+      const position = findAvailableCell(size);
+      
+      return {
+        ...item,
+        size: size,
+        x: position.x,
+        y: position.y,
+        velocityX: (Math.random() - 0.5) * speedMultiplier,
+        velocityY: (Math.random() - 0.5) * speedMultiplier,
+        color: settings.highContrast ? 
+          (item.severity > 5 ? '#FF0000' : '#00FF00') : 
+          settings.bubbleColor,
+      };
+    });
     
     setBubbleData(newBubbleData);
   }, [settings.reducedMotion, settings.highContrast, settings.bubbleColor, getResponsiveSizes]);
 
   const updateBubblePositions = useCallback(() => {
+    if (settings.reducedMotion) return;
+
     requestAnimationFrame(() => {
-      setBubbleData(prevData => 
-        prevData.map(bubble => {
+      setBubbleData(prevData => {
+        const newData = [...prevData];
+        
+        // Update positions
+        for (let i = 0; i < newData.length; i++) {
+          let bubble = newData[i];
           let newX = bubble.x + bubble.velocityX;
           let newY = bubble.y + bubble.velocityY;
 
-          // Simple boundary check with velocity reversal
-          if (newX < 10 || newX > 90) {
-            bubble.velocityX *= -1;
-            newX = Math.max(10, Math.min(90, newX));
+          // Boundary check with elastic bounce
+          if (newX - (bubble.size / 2) < 0 || newX + (bubble.size / 2) > 100) {
+            bubble.velocityX *= -0.8; // Add damping
+            newX = bubble.x;
           }
-          if (newY < 10 || newY > 90) {
-            bubble.velocityY *= -1;
-            newY = Math.max(10, Math.min(90, newY));
+          if (newY - (bubble.size / 2) < 0 || newY + (bubble.size / 2) > 100) {
+            bubble.velocityY *= -0.8; // Add damping
+            newY = bubble.y;
           }
 
-          return {
-            ...bubble,
-            x: newX,
-            y: newY,
-          };
-        })
-      );
+          // Check collisions with other bubbles
+          for (let j = 0; j < newData.length; j++) {
+            if (i !== j) {
+              const other = newData[j];
+              const dx = newX - other.x;
+              const dy = newY - other.y;
+              const distance = Math.sqrt(dx * dx + dy * dy);
+              const minDistance = (bubble.size + other.size) / 2;
+
+              if (distance < minDistance) {
+                // Calculate collision response
+                const angle = Math.atan2(dy, dx);
+                const speed1 = Math.sqrt(bubble.velocityX * bubble.velocityX + 
+                                       bubble.velocityY * bubble.velocityY);
+                const speed2 = Math.sqrt(other.velocityX * other.velocityX + 
+                                       other.velocityY * other.velocityY);
+
+                // New velocities
+                const newVelX1 = speed2 * Math.cos(angle);
+                const newVelY1 = speed2 * Math.sin(angle);
+                const newVelX2 = speed1 * Math.cos(angle + Math.PI);
+                const newVelY2 = speed1 * Math.sin(angle + Math.PI);
+
+                // Apply new velocities with damping
+                bubble.velocityX = newVelX1 * settings.bounciness;
+                bubble.velocityY = newVelY1 * settings.bounciness;
+                other.velocityX = newVelX2 * settings.bounciness;
+                other.velocityY = newVelY2 * settings.bounciness;
+
+                // Prevent overlap
+                newX = other.x + (dx / distance) * minDistance;
+                newY = other.y + (dy / distance) * minDistance;
+                break;
+              }
+            }
+          }
+
+          bubble.x = newX;
+          bubble.y = newY;
+        }
+        
+        return newData;
+      });
     });
-  }, []);
+  }, [settings.reducedMotion, settings.bounciness]);
 
   // Add window resize handler
   useEffect(() => {
@@ -222,6 +332,18 @@ const BubbleChart = () => {
   const BubbleComponent = memo(({ item, onClick }) => {
     const sizes = getResponsiveSizes(window.innerWidth);
     
+    // Get color based on settings
+    const getBubbleColor = () => {
+      if (settings.colorByCount) {
+        // Generate color based on count (red gradient)
+        const intensity = (item.count / maxCount) * 255;
+        return `rgb(${intensity}, ${intensity * 0.3}, ${intensity * 0.3})`;
+      }
+      return settings.highContrast ? 
+        (item.severity > 5 ? '#FF0000' : '#00FF00') : 
+        settings.bubbleColor;
+    };
+
     return (
       <Box
         onClick={onClick}
@@ -229,10 +351,10 @@ const BubbleChart = () => {
           position: 'absolute',
           left: `${item.x}%`,
           top: `${item.y}%`,
-          width: item.size,
-          height: item.size,
+          width: `${item.size}px`,
+          height: `${item.size}px`,
           borderRadius: '50%',
-          bgcolor: item.color,
+          bgcolor: getBubbleColor(),
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -246,6 +368,14 @@ const BubbleChart = () => {
             boxShadow: '0 0 20px rgba(255,255,255,0.2)',
           },
           boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          overflow: 'hidden',
+          padding: '8px',
+          border: settings.showSeverity ? 
+            `${Math.max(2, item.size * 0.05)}px solid ${
+              item.severity > 7 ? '#ff0000' : 
+              item.severity > 4 ? '#ff9900' : 
+              '#ffff00'
+            }` : 'none',
         }}
       >
         {settings.showLabels && (
@@ -253,10 +383,14 @@ const BubbleChart = () => {
             <Typography 
               sx={{ 
                 color: 'white',
-                fontSize: sizes.fontSize.word,
+                fontSize: Math.max(item.size * 0.15, 12), // Responsive font size
                 fontWeight: 'bold',
                 textAlign: 'center',
                 textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
+                width: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
             >
               {item.word}
@@ -264,20 +398,11 @@ const BubbleChart = () => {
             <Typography 
               sx={{ 
                 color: 'rgba(255,255,255,0.9)',
-                fontSize: sizes.fontSize.count,
+                fontSize: Math.max(item.size * 0.12, 10), // Responsive font size
                 mt: 0.5,
               }}
             >
               {item.count}
-            </Typography>
-            <Typography 
-              sx={{ 
-                color: 'rgba(255,255,255,0.7)',
-                fontSize: '0.6rem',
-                mt: 0.2,
-              }}
-            >
-              {item.language}
             </Typography>
           </>
         )}
@@ -804,6 +929,112 @@ const BubbleChart = () => {
                 onChange={(e) => setSettings(prev => ({ 
                   ...prev, 
                   reducedMotion: e.target.checked 
+                }))}
+              />
+            </ListItem>
+
+            <ListItem>
+              <ListItemIcon>
+                <SpeedIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
+              </ListItemIcon>
+              <ListItemText 
+                primary="Bounciness" 
+                secondary="Bubble collision elasticity"
+                secondaryTypographyProps={{
+                  sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
+                }}
+              />
+              <Slider
+                value={settings.bounciness * 100}
+                onChange={(e, value) => setSettings(prev => ({ 
+                  ...prev, 
+                  bounciness: value / 100 
+                }))}
+                min={0}
+                max={100}
+                sx={{ width: 100 }}
+              />
+            </ListItem>
+
+            <ListItem>
+              <ListItemIcon>
+                <ColorLensIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
+              </ListItemIcon>
+              <ListItemText 
+                primary="Color by Count" 
+                secondary="Gradient based on frequency"
+                secondaryTypographyProps={{
+                  sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
+                }}
+              />
+              <Switch
+                checked={settings.colorByCount}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  colorByCount: e.target.checked 
+                }))}
+              />
+            </ListItem>
+
+            <ListItem>
+              <ListItemIcon>
+                <WarningIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
+              </ListItemIcon>
+              <ListItemText 
+                primary="Show Severity" 
+                secondary="Display severity indicator"
+                secondaryTypographyProps={{
+                  sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
+                }}
+              />
+              <Switch
+                checked={settings.showSeverity}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  showSeverity: e.target.checked 
+                }))}
+              />
+            </ListItem>
+
+            <ListItem>
+              <ListItemIcon>
+                <SpeedIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
+              </ListItemIcon>
+              <ListItemText 
+                primary="Animation Speed" 
+                secondary="Control bubble movement speed"
+                secondaryTypographyProps={{
+                  sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
+                }}
+              />
+              <Slider
+                value={settings.animationSpeed * 100}
+                onChange={(e, value) => setSettings(prev => ({ 
+                  ...prev, 
+                  animationSpeed: value / 100 
+                }))}
+                min={0}
+                max={200}
+                sx={{ width: 100 }}
+              />
+            </ListItem>
+
+            <ListItem>
+              <ListItemIcon>
+                <CompareArrowsIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
+              </ListItemIcon>
+              <ListItemText 
+                primary="Collisions" 
+                secondary="Enable bubble collisions"
+                secondaryTypographyProps={{
+                  sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
+                }}
+              />
+              <Switch
+                checked={settings.collisions}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  collisions: e.target.checked 
                 }))}
               />
             </ListItem>

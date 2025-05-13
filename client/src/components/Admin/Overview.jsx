@@ -354,6 +354,10 @@ const Overview = ({ isDarkMode }) => {
           value={data.additionalStats.totalUsers || 0}
           subValue="Active accounts"
           icon={Users}
+          className={cn(
+            "text-foreground",
+            isDarkMode ? "text-white/70" : "text-black/70"
+          )}
         />
 
         {/* 2. Total Flagged */}
@@ -433,9 +437,18 @@ const Overview = ({ isDarkMode }) => {
                         <div className="space-y-4">
                             {/* Filipino Stats */}
                             <div>
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-sm">Filipino</span>
-                  <span className="font-medium">{data.languageBreakdown.filipino} flags</span>
+                                <div className={cn(
+                                    "flex justify-between items-center mb-2",
+                                    isDarkMode ? "text-white/70" : "text-black/70"
+                                )}>
+                                    <span className={cn(
+                                        "text-sm",
+                                        isDarkMode ? "text-white/70" : "text-black/70"
+                                    )}>Filipino</span>
+                  <span className={cn(
+                    "font-medium",
+                    isDarkMode ? "text-white" : "text-black"
+                  )}>{data.languageBreakdown.filipino} flags</span>
                                 </div>
                                 <div className="w-full bg-black/5 rounded-full h-2">
                                     <div 
@@ -450,9 +463,18 @@ const Overview = ({ isDarkMode }) => {
                             
                             {/* English Stats */}
                             <div>
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-sm">English</span>
-                  <span className="font-medium">{data.languageBreakdown.english} flags</span>
+                                <div className={cn(
+                                    "flex justify-between items-center mb-2",
+                                    isDarkMode ? "text-white/70" : "text-black/70"
+                                )}>
+                                    <span className={cn(
+                                        "text-sm",
+                                        isDarkMode ? "text-white/70" : "text-black/70"
+                                    )}>English</span>
+                  <span className={cn(
+                    "font-medium",
+                    isDarkMode ? "text-white" : "text-black"
+                  )}>{data.languageBreakdown.english} flags</span>
                                 </div>
                                 <div className="w-full bg-black/5 rounded-full h-2">
                                     <div 
@@ -492,9 +514,18 @@ const Overview = ({ isDarkMode }) => {
                                 .filter(([key]) => key !== 'total')
                                 .map(([sentiment, count]) => (
                                 <div key={sentiment} className="space-y-1">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm capitalize">{sentiment}</span>
-                                        <span className="font-medium">
+                                    <div className={cn(
+                                        "flex justify-between items-center",
+                                        isDarkMode ? "text-white/70" : "text-black/70"
+                                    )}>
+                                        <span className={cn(
+                                            "text-sm capitalize",
+                                            isDarkMode ? "text-white/70" : "text-black/70"
+                                        )}>{sentiment}</span>
+                                        <span className={cn(
+                                            "font-medium",
+                                            isDarkMode ? "text-white" : "text-black"
+                                        )}>
                       {((count/data.sentimentBreakdown.total)*100).toFixed(1)}%
                                         </span>
                                     </div>
@@ -649,9 +680,18 @@ const WebsiteSourcesSection = ({ data, isDarkMode, calculatePercentage }) => {
         <div className="space-y-4">
           {data.websiteSources.map((source, index) => (
             <div key={source.name || index} className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm truncate flex-1 mr-2">{source.name || 'Unknown'}</span>
-                <span className="font-medium whitespace-nowrap">
+              <div className={cn(
+                "flex justify-between items-center",
+                isDarkMode ? "text-white/70" : "text-black/70"
+              )}>
+                <span className={cn(
+                  "text-sm truncate flex-1 mr-2",
+                  isDarkMode ? "text-white/70" : "text-black/70"
+                )}>{source.name || 'Unknown'}</span>
+                <span className={cn(
+                  "font-medium whitespace-nowrap",
+                  isDarkMode ? "text-white" : "text-black"
+                )}>
                   {calculatePercentage(source.count, data.flaggedContent.total)}%
                 </span>
               </div>

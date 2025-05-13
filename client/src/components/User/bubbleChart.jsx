@@ -24,18 +24,21 @@ import {
   CircularProgress,
   Button,
 } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import SearchIcon from '@mui/icons-material/Search';
-import SettingsIcon from '@mui/icons-material/Settings';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import DarkModeIcon from '@mui/icons-material/DarkMode';
-import SpeedIcon from '@mui/icons-material/Speed';
-import ColorLensIcon from '@mui/icons-material/ColorLens';
-import AccessibilityNewIcon from '@mui/icons-material/AccessibilityNew';
-import TextFieldsIcon from '@mui/icons-material/TextFields';
-import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  Refresh as RefreshIcon,
+  Search as SearchIcon,
+  Settings as SettingsIcon,
+  TrendingUp as TrendingUpIcon,
+  DarkMode as DarkModeIcon,
+  Speed as SpeedIcon,
+  ColorLens as ColorLensIcon,
+  AccessibilityNew as AccessibilityNewIcon,
+  TextFields as TextFieldsIcon,
+  KeyboardArrowUp as KeyboardArrowUpIcon,
+  KeyboardArrowDown as KeyboardArrowDownIcon,
+  Warning as WarningIcon,
+  CompareArrows as CompareArrowsIcon,
+} from '@mui/icons-material';
 import Logo from '../../assets/logo.png'; // Add your logo image
 import api from '@/utils/api';
 

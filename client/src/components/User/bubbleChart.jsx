@@ -122,85 +122,34 @@ const BubbleChart = () => {
   // Modify processData to properly handle reducedMotion
   const processData = useCallback(() => {
     const sizes = getResponsiveSizes(window.innerWidth);
-    const speedMultiplier = settings.reducedMotion ? 0 : 0.2;
+    const speedMultiplier = settings.reducedMotion ? 0.1 : 0.2;
     
     // Calculate the maximum count to normalize sizes
     const maxCount = Math.max(...sampleData.words.map(item => item.count));
     
     // Calculate minimum and maximum bubble sizes
-    const minSize = 40;
-    const maxSize = 100;
+    const minSize = sizes.minSize;
+    const maxSize = sizes.maxSize;
     
-    // Function to calculate size based on count
-    const calculateSize = (count) => {
-      return minSize + ((count / maxCount) * (maxSize - minSize));
-    };
-
-    // Grid-based positioning to prevent overlaps
-    const gridSize = 10; // 10x10 grid
-    const cellWidth = 100 / gridSize;
-    const cellHeight = 100 / gridSize;
-    const usedCells = new Set();
-
-    const findAvailableCell = (size) => {
-      const padding = size / window.innerWidth * 100; // Convert size to percentage
-      
-      for (let i = 0; i < gridSize; i++) {
-        for (let j = 0; j < gridSize; j++) {
-          const cellKey = `${i}-${j}`;
-          if (!usedCells.has(cellKey)) {
-            // Calculate position in percentages
-            const x = (i * cellWidth) + (cellWidth / 2);
-            const y = (j * cellHeight) + (cellHeight / 2);
-            
-            // Check if this position would overlap with any existing bubbles
-            let overlaps = false;
-            for (const existingCell of usedCells) {
-              const [existingI, existingJ] = existingCell.split('-').map(Number);
-              const existingX = (existingI * cellWidth) + (cellWidth / 2);
-              const existingY = (existingJ * cellHeight) + (cellHeight / 2);
-              
-              const distance = Math.sqrt(
-                Math.pow(x - existingX, 2) + 
-                Math.pow(y - existingY, 2)
-              );
-              
-              if (distance < padding * 2) {
-                overlaps = true;
-                break;
-              }
-            }
-            
-            if (!overlaps) {
-              usedCells.add(cellKey);
-              return { x, y };
-            }
-          }
-        }
-      }
-      // Fallback position if no space found
-      return { x: 50, y: 50 };
-    };
-
     const newBubbleData = sampleData.words.map(item => {
-      const size = calculateSize(item.count);
-      const position = findAvailableCell(size);
+      // Calculate size based on count relative to maxCount
+      const sizePercentage = item.count / maxCount;
+      const size = minSize + (sizePercentage * (maxSize - minSize));
       
       return {
         ...item,
-        size: size,
-        x: position.x,
-        y: position.y,
+        ...getRandomPosition(),
+        size: size, // This will now properly scale based on count
         velocityX: (Math.random() - 0.5) * speedMultiplier,
         velocityY: (Math.random() - 0.5) * speedMultiplier,
-        color: settings.highContrast ? 
-          (item.severity > 5 ? '#FF0000' : '#00FF00') : 
-          settings.bubbleColor,
+        color: settings.darkMode 
+          ? settings.bubbleColor 
+          : settings.bubbleColor.replace('rgb', 'rgba').replace(')', ', 0.8)')
       };
     });
-    
+
     setBubbleData(newBubbleData);
-  }, [settings.reducedMotion, settings.highContrast, settings.bubbleColor, getResponsiveSizes]);
+  }, [settings, getResponsiveSizes]);
 
   const updateBubblePositions = useCallback(() => {
     if (settings.reducedMotion) return;
@@ -212,56 +161,83 @@ const BubbleChart = () => {
         // Update positions
         for (let i = 0; i < newData.length; i++) {
           let bubble = newData[i];
-          let newX = bubble.x + bubble.velocityX;
-          let newY = bubble.y + bubble.velocityY;
+          
+          // Calculate new position
+          let newX = bubble.x + (bubble.velocityX * settings.animationSpeed);
+          let newY = bubble.y + (bubble.velocityY * settings.animationSpeed);
 
-          // Boundary check with elastic bounce
-          if (newX - (bubble.size / 2) < 0 || newX + (bubble.size / 2) > 100) {
-            bubble.velocityX *= -0.8; // Add damping
-            newX = bubble.x;
+          // Calculate bubble radius in percentage
+          const radiusPercent = (bubble.size / 2) / window.innerWidth * 100;
+
+          // Boundary check with proper bounce
+          if (newX - radiusPercent < 0) {
+            newX = radiusPercent;
+            bubble.velocityX = Math.abs(bubble.velocityX) * settings.bounciness;
+          } else if (newX + radiusPercent > 100) {
+            newX = 100 - radiusPercent;
+            bubble.velocityX = -Math.abs(bubble.velocityX) * settings.bounciness;
           }
-          if (newY - (bubble.size / 2) < 0 || newY + (bubble.size / 2) > 100) {
-            bubble.velocityY *= -0.8; // Add damping
-            newY = bubble.y;
+
+          if (newY - radiusPercent < 0) {
+            newY = radiusPercent;
+            bubble.velocityY = Math.abs(bubble.velocityY) * settings.bounciness;
+          } else if (newY + radiusPercent > 100) {
+            newY = 100 - radiusPercent;
+            bubble.velocityY = -Math.abs(bubble.velocityY) * settings.bounciness;
           }
 
-          // Check collisions with other bubbles
-          for (let j = 0; j < newData.length; j++) {
-            if (i !== j) {
-              const other = newData[j];
-              const dx = newX - other.x;
-              const dy = newY - other.y;
-              const distance = Math.sqrt(dx * dx + dy * dy);
-              const minDistance = (bubble.size + other.size) / 2;
+          // Only check collisions if enabled
+          if (settings.collisions) {
+            for (let j = 0; j < newData.length; j++) {
+              if (i !== j) {
+                const other = newData[j];
+                const dx = newX - other.x;
+                const dy = newY - other.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const minDistance = (bubble.size + other.size) / 2 / window.innerWidth * 100;
 
-              if (distance < minDistance) {
-                // Calculate collision response
-                const angle = Math.atan2(dy, dx);
-                const speed1 = Math.sqrt(bubble.velocityX * bubble.velocityX + 
+                if (distance < minDistance) {
+                  // Elastic collision response
+                  const angle = Math.atan2(dy, dx);
+                  const speed1 = Math.sqrt(bubble.velocityX * bubble.velocityX + 
                                        bubble.velocityY * bubble.velocityY);
-                const speed2 = Math.sqrt(other.velocityX * other.velocityX + 
+                  const speed2 = Math.sqrt(other.velocityX * other.velocityX + 
                                        other.velocityY * other.velocityY);
 
-                // New velocities
-                const newVelX1 = speed2 * Math.cos(angle);
-                const newVelY1 = speed2 * Math.sin(angle);
-                const newVelX2 = speed1 * Math.cos(angle + Math.PI);
-                const newVelY2 = speed1 * Math.sin(angle + Math.PI);
+                  // New velocities
+                  const newVelX1 = speed2 * Math.cos(angle);
+                  const newVelY1 = speed2 * Math.sin(angle);
+                  const newVelX2 = speed1 * Math.cos(angle + Math.PI);
+                  const newVelY2 = speed1 * Math.sin(angle + Math.PI);
 
-                // Apply new velocities with damping
-                bubble.velocityX = newVelX1 * settings.bounciness;
-                bubble.velocityY = newVelY1 * settings.bounciness;
-                other.velocityX = newVelX2 * settings.bounciness;
-                other.velocityY = newVelY2 * settings.bounciness;
+                  // Apply new velocities with damping
+                  bubble.velocityX = newVelX1 * settings.bounciness;
+                  bubble.velocityY = newVelY1 * settings.bounciness;
+                  other.velocityX = newVelX2 * settings.bounciness;
+                  other.velocityY = newVelY2 * settings.bounciness;
 
-                // Prevent overlap
-                newX = other.x + (dx / distance) * minDistance;
-                newY = other.y + (dy / distance) * minDistance;
-                break;
+                  // Adjust positions to prevent overlap
+                  const overlap = minDistance - distance;
+                  const moveX = (overlap * Math.cos(angle)) / 2;
+                  const moveY = (overlap * Math.sin(angle)) / 2;
+                  
+                  newX = bubble.x + moveX;
+                  newY = bubble.y + moveY;
+                  other.x = other.x - moveX;
+                  other.y = other.y - moveY;
+                  
+                  break;
+                }
               }
             }
           }
 
+          // Apply minimum velocity threshold to prevent very slow movement
+          const minVelocity = 0.01;
+          if (Math.abs(bubble.velocityX) < minVelocity) bubble.velocityX = 0;
+          if (Math.abs(bubble.velocityY) < minVelocity) bubble.velocityY = 0;
+
+          // Update bubble position
           bubble.x = newX;
           bubble.y = newY;
         }
@@ -269,7 +245,7 @@ const BubbleChart = () => {
         return newData;
       });
     });
-  }, [settings.reducedMotion, settings.bounciness]);
+  }, [settings.reducedMotion, settings.bounciness, settings.collisions, settings.animationSpeed]);
 
   // Add window resize handler
   useEffect(() => {
@@ -333,20 +309,6 @@ const BubbleChart = () => {
 
   // Modify BubbleComponent to use responsive sizes
   const BubbleComponent = memo(({ item, onClick }) => {
-    const sizes = getResponsiveSizes(window.innerWidth);
-    
-    // Get color based on settings
-    const getBubbleColor = () => {
-      if (settings.colorByCount) {
-        // Generate color based on count (red gradient)
-        const intensity = (item.count / maxCount) * 255;
-        return `rgb(${intensity}, ${intensity * 0.3}, ${intensity * 0.3})`;
-      }
-      return settings.highContrast ? 
-        (item.severity > 5 ? '#FF0000' : '#00FF00') : 
-        settings.bubbleColor;
-    };
-
     return (
       <Box
         onClick={onClick}
@@ -357,7 +319,7 @@ const BubbleChart = () => {
           width: `${item.size}px`,
           height: `${item.size}px`,
           borderRadius: '50%',
-          bgcolor: getBubbleColor(),
+          backgroundColor: settings.darkMode ? item.color : item.color,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -368,40 +330,39 @@ const BubbleChart = () => {
           '&:hover': {
             transform: 'translate(-50%, -50%) scale(1.1)',
             zIndex: 2,
-            boxShadow: '0 0 20px rgba(255,255,255,0.2)',
+            boxShadow: settings.darkMode 
+              ? '0 0 20px rgba(255,255,255,0.2)'
+              : '0 0 20px rgba(0,0,0,0.2)',
           },
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          overflow: 'hidden',
-          padding: '8px',
-          border: settings.showSeverity ? 
-            `${Math.max(2, item.size * 0.05)}px solid ${
-              item.severity > 7 ? '#ff0000' : 
-              item.severity > 4 ? '#ff9900' : 
-              '#ffff00'
-            }` : 'none',
+          boxShadow: settings.darkMode 
+            ? '0 4px 12px rgba(0,0,0,0.3)'
+            : '0 4px 12px rgba(0,0,0,0.1)',
         }}
       >
         {settings.showLabels && (
           <>
             <Typography 
               sx={{ 
-                color: 'white',
-                fontSize: Math.max(item.size * 0.15, 12), // Responsive font size
+                color: settings.darkMode ? 'white' : 'black',
+                fontSize: `${Math.max(item.size * 0.2, 12)}px`, // Responsive font size
                 fontWeight: 'bold',
                 textAlign: 'center',
-                textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
+                textShadow: settings.darkMode 
+                  ? '1px 1px 2px rgba(0,0,0,0.5)'
+                  : 'none',
                 width: '100%',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
+                padding: '0 4px',
               }}
             >
               {item.word}
             </Typography>
             <Typography 
               sx={{ 
-                color: 'rgba(255,255,255,0.9)',
-                fontSize: Math.max(item.size * 0.12, 10), // Responsive font size
+                color: settings.darkMode ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)',
+                fontSize: `${Math.max(item.size * 0.15, 10)}px`, // Smaller count size
                 mt: 0.5,
               }}
             >
@@ -861,8 +822,7 @@ const BubbleChart = () => {
                 checked={settings.darkMode}
                 onChange={(e) => setSettings(prev => ({ 
                   ...prev, 
-                  darkMode: e.target.checked,
-                  backgroundColor: e.target.checked ? '#111111' : '#ffffff'
+                  darkMode: e.target.checked 
                 }))}
               />
             </ListItem>
@@ -872,8 +832,8 @@ const BubbleChart = () => {
                 <ColorLensIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
               </ListItemIcon>
               <ListItemText 
-                primary="Bubble Color"
-                secondary="Choose default bubble color"
+                primary="Bubble Color" 
+                secondary="Choose default color"
                 secondaryTypographyProps={{
                   sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
                 }}
@@ -886,12 +846,10 @@ const BubbleChart = () => {
                   bubbleColor: e.target.value 
                 }))}
                 style={{ 
-                  width: 32, 
-                  height: 32, 
-                  padding: 0, 
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer'
+                  width: '32px', 
+                  height: '32px',
+                  padding: 0,
+                  border: 'none'
                 }}
               />
             </ListItem>

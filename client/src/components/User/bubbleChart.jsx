@@ -424,20 +424,31 @@ const BubbleChart = () => {
         sx={{
           position: 'fixed',
           bottom: isNavVisible ? 
-            { xs: 'calc(12px + 140px)', sm: 'calc(24px + 60px)' } : 
-            { xs: '12px', sm: '24px' },
+            { 
+              xs: 'calc(12px + 180px)', // Increased spacing for mobile
+              sm: 'calc(24px + 60px)' 
+            } : 
+            { 
+              xs: '12px', 
+              sm: '24px' 
+            },
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 11,
           cursor: 'pointer',
           backdropFilter: 'blur(12px)',
+          backgroundColor: 'rgba(0, 0, 0, 0.5)', // Added background for better visibility
           borderRadius: '12px',
           padding: '8px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           transition: 'all 0.3s ease',
-          
+          width: '36px',
+          height: '36px',
+          '&:hover': {
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          }
         }}
       >
         {isNavVisible ? 
@@ -446,7 +457,7 @@ const BubbleChart = () => {
         }
       </Box>
 
-      {/* Modify bottom bar for mobile - wrap with Slide */}
+      {/* Bottom Navigation Bar */}
       <Slide direction="up" in={isNavVisible} mountOnEnter unmountOnExit>
         <Box
           sx={{
@@ -466,7 +477,7 @@ const BubbleChart = () => {
             backdropFilter: 'blur(12px)',
             borderRadius: '16px',
             padding: (theme) => ({
-              xs: '12px',
+              xs: '16px 12px', // Increased vertical padding
               sm: theme.spacing(1, 2)
             }),
             boxShadow: '0 4px 24px rgba(0, 0, 0, 0.2)',

@@ -23,10 +23,14 @@ const AdminLogin = () => {
         setStatus({ type: '', message: '' });
 
         try {
-            const { data } = await api.post('/api/auth/admin/login', {
+            console.log('Attempting login to:', import.meta.env.VITE_API_URL);
+            
+            const { data } = await api.post('/api/users/auth/login', {
                 email,
                 password
             });
+
+            console.log('Login successful:', data);
 
             // Store token and user info
             localStorage.setItem('token', data.token);
@@ -44,10 +48,15 @@ const AdminLogin = () => {
             // Redirect to dashboard
             navigate('/admin/dashboard');
         } catch (error) {
-            console.error('Login error:', error);
+            console.error('Login error details:', {
+                message: error.message,
+                response: error.response?.data,
+                status: error.response?.status
+            });
+            
             setStatus({
                 type: 'error',
-                message: error.message || 'Invalid credentials, please try again.'
+                message: error.response?.data?.error || error.message || 'Invalid credentials, please try again.'
             });
         } finally {
             setIsLoading(false);

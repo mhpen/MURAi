@@ -294,71 +294,75 @@ const BubbleChart = () => {
         params: { timeFrame }
       });
 
-      // If no data received, use sample data for development
-      if (!data || !data.words) {
-        console.warn('No data received from API, using sample data');
+      // Log the received data for debugging
+      console.log('Raw API response:', data);
+
+      // More flexible data validation
+      if (!data) {
+        throw new Error('No data received from server');
+      }
+
+      // If no words data, use sample data for development/testing
+      const wordsData = data.words || sampleData.words;
+      
+      if (!Array.isArray(wordsData)) {
+        throw new Error('Words data is not in the expected format');
+      }
+
+      if (wordsData.length === 0) {
+        setError('No data available');
+        setBubbleData([]);
+        return;
+      }
+
+      const processedData = wordsData.map(item => ({
+        word: item.word || 'Unknown',
+        count: item.count || 0,
+        severity: item.severity || 1,
+        category: item.category || 'unknown',
+        x: Math.random() * 80 + 10,
+        y: Math.random() * 80 + 10,
+        velocityX: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
+        velocityY: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
+        color: getColorByCategory(item.category, item.severity)
+      }));
+
+      setBubbleData(processedData);
+    } catch (error) {
+      console.error('Error fetching bubble data:', error);
+      // Use sample data as fallback in case of error
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Using sample data as fallback');
         const processedSampleData = sampleData.words.map(item => ({
           ...item,
           x: Math.random() * 80 + 10,
           y: Math.random() * 80 + 10,
           velocityX: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
           velocityY: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
-          color: getColorByCategory(item.category, item.severity)
+          color: getColorByCategory(item.category || 'unknown', item.severity || 1)
         }));
         setBubbleData(processedSampleData);
-        return;
+        setError('Using sample data (development mode)');
+      } else {
+        setError(error.message);
+        setBubbleData([]);
       }
-
-      // Process the API data
-      const processedData = data.words.map(item => ({
-        ...item,
-        x: Math.random() * 80 + 10,
-        y: Math.random() * 80 + 10,
-        velocityX: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
-        velocityY: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
-        color: getColorByCategory(item.category || 'default', item.severity || 5)
-      }));
-
-      if (processedData.length === 0) {
-        console.warn('No data to display');
-        setError('No data available');
-        return;
-      }
-
-      setBubbleData(processedData);
-    } catch (error) {
-      console.error('Error fetching bubble data:', error);
-      // Use sample data as fallback in case of error
-      const processedSampleData = sampleData.words.map(item => ({
-        ...item,
-        x: Math.random() * 80 + 10,
-        y: Math.random() * 80 + 10,
-        velocityX: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
-        velocityY: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
-        color: getColorByCategory(item.category || 'default', item.severity)
-      }));
-      setBubbleData(processedSampleData);
-      setError('Could not fetch live data, showing sample data instead');
     } finally {
       setIsLoading(false);
     }
   }, [timeFrame, settings.reducedMotion]);
 
-  // Update getColorByCategory to handle missing category
-  const getColorByCategory = (category, severity = 5) => {
+  // Function to determine bubble color based on category and severity
+  const getColorByCategory = (category, severity) => {
     const baseColors = {
       profanity: '#FF4444',
       slur: '#FF8800',
-      sexual: '#CC00CC',
-      default: '#666666'  // Default color if category is not specified
+      sexual: '#CC00CC'
     };
     
-    // Ensure severity is a number and within bounds
-    const normalizedSeverity = Math.min(Math.max(Number(severity) || 5, 1), 10);
-    
-    // Adjust color opacity based on severity (1-10)
-    const opacity = 0.4 + (normalizedSeverity * 0.06); // This will scale from 0.46 to 1
-    const baseColor = baseColors[category] || baseColors.default;
+    // Adjust color opacity based on severity (1-5)
+    const opacity = 0.4 + (severity * 0.12); // This will scale from 0.52 to 1
+    const baseColor = baseColors[category] || '#666666';
     
     // Convert hex to rgba
     const r = parseInt(baseColor.slice(1,3), 16);

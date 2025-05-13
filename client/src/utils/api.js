@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: import.meta.env.VITE_API_URL || 'https://murai-qgd8.onrender.com',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -13,6 +13,8 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // Log the full URL being requested (for debugging)
+  console.log('Making request to:', config.baseURL + config.url);
   return config;
 });
 
@@ -20,6 +22,12 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    console.error('API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      data: error.response?.data
+    });
     const message = error.response?.data?.error || error.message || 'An error occurred';
     return Promise.reject(new Error(message));
   }

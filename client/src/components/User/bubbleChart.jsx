@@ -51,18 +51,14 @@ const BubbleChart = () => {
   const [settings, setSettings] = useState({
     darkMode: true,
     bubbleColor: '#4CAF50',
-    backgroundColor: '#111111',
     showLabels: true,
-    reducedMotion: false,
-    bounciness: 0.8,
-    colorByCount: false,
-    showSeverity: false,
     animationSpeed: 1,
-    collisions: true,
+    showSeverity: false,
   });
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actualData, setActualData] = useState([]);
 
   // Sample data with more realistic inappropriate words
   const sampleData = {
@@ -83,10 +79,10 @@ const BubbleChart = () => {
   };
 
   const getRandomPosition = () => ({
-    x: Math.random() * 80 + 10,
-    y: Math.random() * 80 + 10,
-    velocityX: (Math.random() - 0.5) * 0.2,
-    velocityY: (Math.random() - 0.5) * 0.2,
+    x: Math.random() * 90 + 5, // Keep within 5-95% range
+    y: Math.random() * 90 + 5,
+    velocityX: (Math.random() - 0.5) * 0.2 * settings.animationSpeed,
+    velocityY: (Math.random() - 0.5) * 0.2 * settings.animationSpeed,
   });
 
   // Add responsive sizing helper
@@ -119,37 +115,67 @@ const BubbleChart = () => {
     };
   }, []);
 
-  // Modify processData to properly handle reducedMotion
+  // Fetch data from the API
+  const fetchData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await api.get(`/api/analytics/flagged-words?timeFrame=${timeFrame}`);
+      
+      // Transform API data to match required format
+      const transformedData = response.data.map(item => ({
+        word: item.word,
+        count: item.frequency || item.count,
+        severity: item.severity || 5, // Default severity if not provided
+      }));
+
+      setActualData(transformedData);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError(err.message);
+      // Fallback to sample data if API fails
+      setActualData(sampleData.words);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [timeFrame]);
+
+  // Update useEffect to fetch data
+  useEffect(() => {
+    fetchData();
+  }, [fetchData, timeFrame]);
+
+  // Modify processData to use actualData instead of sampleData
   const processData = useCallback(() => {
     const sizes = getResponsiveSizes(window.innerWidth);
     const speedMultiplier = settings.reducedMotion ? 0.1 : 0.2;
     
-    // Calculate the maximum count to normalize sizes
-    const maxCount = Math.max(...sampleData.words.map(item => item.count));
+    // Use actualData instead of sampleData
+    const maxCount = Math.max(...actualData.map(item => item.count));
     
-    // Calculate minimum and maximum bubble sizes
     const minSize = sizes.minSize;
     const maxSize = sizes.maxSize;
     
-    const newBubbleData = sampleData.words.map(item => {
-      // Calculate size based on count relative to maxCount
+    const newBubbleData = actualData.map(item => {
       const sizePercentage = item.count / maxCount;
       const size = minSize + (sizePercentage * (maxSize - minSize));
       
       return {
         ...item,
         ...getRandomPosition(),
-        size: size, // This will now properly scale based on count
+        size: size,
         velocityX: (Math.random() - 0.5) * speedMultiplier,
         velocityY: (Math.random() - 0.5) * speedMultiplier,
-        color: settings.darkMode 
-          ? settings.bubbleColor 
-          : settings.bubbleColor.replace('rgb', 'rgba').replace(')', ', 0.8)')
+        color: settings.colorByCount 
+          ? getColorByCount(item.count, maxCount)
+          : settings.showSeverity
+            ? getSeverityColor(item.severity)
+            : settings.bubbleColor
       };
     });
 
     setBubbleData(newBubbleData);
-  }, [settings, getResponsiveSizes]);
+  }, [settings, getResponsiveSizes, actualData]);
 
   const updateBubblePositions = useCallback(() => {
     if (settings.reducedMotion) return;
@@ -166,23 +192,23 @@ const BubbleChart = () => {
           let newX = bubble.x + (bubble.velocityX * settings.animationSpeed);
           let newY = bubble.y + (bubble.velocityY * settings.animationSpeed);
 
-          // Calculate bubble radius in percentage
-          const radiusPercent = (bubble.size / 2) / window.innerWidth * 100;
-
-          // Boundary check with proper bounce
-          if (newX - radiusPercent < 0) {
-            newX = radiusPercent;
+          // Fixed boundary check (using percentage-based boundaries)
+          const padding = 5; // Percentage padding from edges
+          
+          // Bounce off walls with proper direction change
+          if (newX < padding) {
+            newX = padding;
             bubble.velocityX = Math.abs(bubble.velocityX) * settings.bounciness;
-          } else if (newX + radiusPercent > 100) {
-            newX = 100 - radiusPercent;
+          } else if (newX > 100 - padding) {
+            newX = 100 - padding;
             bubble.velocityX = -Math.abs(bubble.velocityX) * settings.bounciness;
           }
 
-          if (newY - radiusPercent < 0) {
-            newY = radiusPercent;
+          if (newY < padding) {
+            newY = padding;
             bubble.velocityY = Math.abs(bubble.velocityY) * settings.bounciness;
-          } else if (newY + radiusPercent > 100) {
-            newY = 100 - radiusPercent;
+          } else if (newY > 100 - padding) {
+            newY = 100 - padding;
             bubble.velocityY = -Math.abs(bubble.velocityY) * settings.bounciness;
           }
 
@@ -194,38 +220,25 @@ const BubbleChart = () => {
                 const dx = newX - other.x;
                 const dy = newY - other.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
-                const minDistance = (bubble.size + other.size) / 2 / window.innerWidth * 100;
+                const minDistance = 10; // Minimum distance between bubbles
 
                 if (distance < minDistance) {
                   // Elastic collision response
                   const angle = Math.atan2(dy, dx);
-                  const speed1 = Math.sqrt(bubble.velocityX * bubble.velocityX + 
-                                       bubble.velocityY * bubble.velocityY);
-                  const speed2 = Math.sqrt(other.velocityX * other.velocityX + 
-                                       other.velocityY * other.velocityY);
-
-                  // New velocities
-                  const newVelX1 = speed2 * Math.cos(angle);
-                  const newVelY1 = speed2 * Math.sin(angle);
-                  const newVelX2 = speed1 * Math.cos(angle + Math.PI);
-                  const newVelY2 = speed1 * Math.sin(angle + Math.PI);
-
-                  // Apply new velocities with damping
-                  bubble.velocityX = newVelX1 * settings.bounciness;
-                  bubble.velocityY = newVelY1 * settings.bounciness;
-                  other.velocityX = newVelX2 * settings.bounciness;
-                  other.velocityY = newVelY2 * settings.bounciness;
-
-                  // Adjust positions to prevent overlap
-                  const overlap = minDistance - distance;
-                  const moveX = (overlap * Math.cos(angle)) / 2;
-                  const moveY = (overlap * Math.sin(angle)) / 2;
                   
-                  newX = bubble.x + moveX;
-                  newY = bubble.y + moveY;
-                  other.x = other.x - moveX;
-                  other.y = other.y - moveY;
+                  // Swap velocities for elastic collision
+                  const tempVelX = bubble.velocityX;
+                  const tempVelY = bubble.velocityY;
                   
+                  bubble.velocityX = other.velocityX * settings.bounciness;
+                  bubble.velocityY = other.velocityY * settings.bounciness;
+                  
+                  other.velocityX = tempVelX * settings.bounciness;
+                  other.velocityY = tempVelY * settings.bounciness;
+
+                  // Push bubbles apart to prevent sticking
+                  newX = other.x + (minDistance * Math.cos(angle));
+                  newY = other.y + (minDistance * Math.sin(angle));
                   break;
                 }
               }
@@ -234,8 +247,12 @@ const BubbleChart = () => {
 
           // Apply minimum velocity threshold to prevent very slow movement
           const minVelocity = 0.01;
-          if (Math.abs(bubble.velocityX) < minVelocity) bubble.velocityX = 0;
-          if (Math.abs(bubble.velocityY) < minVelocity) bubble.velocityY = 0;
+          if (Math.abs(bubble.velocityX) < minVelocity) {
+            bubble.velocityX = minVelocity * (Math.random() > 0.5 ? 1 : -1);
+          }
+          if (Math.abs(bubble.velocityY) < minVelocity) {
+            bubble.velocityY = minVelocity * (Math.random() > 0.5 ? 1 : -1);
+          }
 
           // Update bubble position
           bubble.x = newX;
@@ -374,122 +391,64 @@ const BubbleChart = () => {
     );
   });
 
-  const fetchBubbleData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const { data } = await api.get('/api/analytics/bubble-chart', {
-        params: { timeFrame }
-      });
-
-      // Log the received data for debugging
-      console.log('Raw API response:', data);
-
-      // More flexible data validation
-      if (!data) {
-        throw new Error('No data received from server');
-      }
-
-      // If no words data, use sample data for development/testing
-      const wordsData = data.words || sampleData.words;
-      
-      if (!Array.isArray(wordsData)) {
-        throw new Error('Words data is not in the expected format');
-      }
-
-      if (wordsData.length === 0) {
-        setError('No data available');
-        setBubbleData([]);
-        return;
-      }
-
-      const processedData = wordsData.map(item => ({
-        word: item.word || 'Unknown',
-        count: item.count || 0,
-        severity: item.severity || 1,
-        category: item.category || 'unknown',
-        x: Math.random() * 80 + 10,
-        y: Math.random() * 80 + 10,
-        velocityX: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
-        velocityY: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
-        color: getColorByCategory(item.category, item.severity)
-      }));
-
-      setBubbleData(processedData);
-    } catch (error) {
-      console.error('Error fetching bubble data:', error);
-      // Use sample data as fallback in case of error
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Using sample data as fallback');
-        const processedSampleData = sampleData.words.map(item => ({
-          ...item,
-          x: Math.random() * 80 + 10,
-          y: Math.random() * 80 + 10,
-          velocityX: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
-          velocityY: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
-          color: getColorByCategory(item.category || 'unknown', item.severity || 1)
-        }));
-        setBubbleData(processedSampleData);
-        setError('Using sample data (development mode)');
-      } else {
-        setError(error.message);
-        setBubbleData([]);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [timeFrame, settings.reducedMotion]);
-
-  // Function to determine bubble color based on category and severity
-  const getColorByCategory = (category, severity) => {
-    const baseColors = {
-      profanity: '#FF4444',
-      slur: '#FF8800',
-      sexual: '#CC00CC'
-    };
-    
-    // Adjust color opacity based on severity (1-5)
-    const opacity = 0.4 + (severity * 0.12); // This will scale from 0.52 to 1
-    const baseColor = baseColors[category] || '#666666';
-    
-    // Convert hex to rgba
-    const r = parseInt(baseColor.slice(1,3), 16);
-    const g = parseInt(baseColor.slice(3,5), 16);
-    const b = parseInt(baseColor.slice(5,7), 16);
-    
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  // Add helper functions for colors
+  const getColorByCount = (count, maxCount) => {
+    const intensity = (count / maxCount) * 255;
+    return settings.darkMode
+      ? `rgba(${intensity}, ${intensity * 0.3}, ${intensity * 0.3}, 0.9)`
+      : `rgba(${intensity}, ${intensity * 0.3}, ${intensity * 0.3}, 0.7)`;
   };
 
-  useEffect(() => {
-    fetchBubbleData();
-  }, [fetchBubbleData, timeFrame]);
+  const getSeverityColor = (severity) => {
+    const colors = {
+      high: '#ff4444',
+      medium: '#ffaa00',
+      low: '#ffdd00'
+    };
+    
+    if (severity > 7) return colors.high;
+    if (severity > 4) return colors.medium;
+    return colors.low;
+  };
 
-  // Show loading state
+  // Add refresh functionality
+  const handleRefresh = () => {
+    setIsLoading(true);
+    fetchData();
+  };
+
+  // Update the UI to show loading state
   if (isLoading) {
     return (
       <Box sx={{ 
-        height: '100vh', 
         display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center' 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        height: '100%',
+        minHeight: '400px'
       }}>
         <CircularProgress />
       </Box>
     );
   }
 
-  // Show error state
   if (error) {
     return (
       <Box sx={{ 
-        height: '100vh', 
         display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        color: 'error.main'
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 2,
+        padding: 4 
       }}>
-        <Typography>{error}</Typography>
+        <Typography color="error">Error: {error}</Typography>
+        <Button 
+          variant="contained" 
+          onClick={handleRefresh}
+          startIcon={<RefreshIcon />}
+        >
+          Retry
+        </Button>
       </Box>
     );
   }
@@ -509,7 +468,7 @@ const BubbleChart = () => {
           {searchTerm ? 'No matching words found' : 'No data available'}
         </Typography>
         <Button 
-          onClick={fetchBubbleData} 
+          onClick={handleRefresh} 
           startIcon={<RefreshIcon />}
           sx={{ mt: 2 }}
         >
@@ -703,7 +662,7 @@ const BubbleChart = () => {
             mt: { xs: 1, sm: 0 },
           }}>
             <IconButton 
-              onClick={fetchBubbleData}
+              onClick={handleRefresh}
               size="small"
               sx={{ 
                 color: 'rgba(255,255,255,0.7)', 
@@ -807,6 +766,7 @@ const BubbleChart = () => {
         }}>
           <Typography variant="h6" sx={{ mb: 3 }}>Settings</Typography>
           <List>
+            {/* Theme Setting */}
             <ListItem>
               <ListItemIcon>
                 <DarkModeIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
@@ -827,6 +787,7 @@ const BubbleChart = () => {
               />
             </ListItem>
 
+            {/* Bubble Color */}
             <ListItem>
               <ListItemIcon>
                 <ColorLensIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
@@ -854,6 +815,7 @@ const BubbleChart = () => {
               />
             </ListItem>
 
+            {/* Show Labels */}
             <ListItem>
               <ListItemIcon>
                 <TextFieldsIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
@@ -874,96 +836,14 @@ const BubbleChart = () => {
               />
             </ListItem>
 
-            <ListItem>
-              <ListItemIcon>
-                <SpeedIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
-              </ListItemIcon>
-              <ListItemText 
-                primary="Reduced Motion" 
-                secondary="Slower animations"
-                secondaryTypographyProps={{
-                  sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
-                }}
-              />
-              <Switch
-                checked={settings.reducedMotion}
-                onChange={(e) => setSettings(prev => ({ 
-                  ...prev, 
-                  reducedMotion: e.target.checked 
-                }))}
-              />
-            </ListItem>
-
-            <ListItem>
-              <ListItemIcon>
-                <SpeedIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
-              </ListItemIcon>
-              <ListItemText 
-                primary="Bounciness" 
-                secondary="Bubble collision elasticity"
-                secondaryTypographyProps={{
-                  sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
-                }}
-              />
-              <Slider
-                value={settings.bounciness * 100}
-                onChange={(e, value) => setSettings(prev => ({ 
-                  ...prev, 
-                  bounciness: value / 100 
-                }))}
-                min={0}
-                max={100}
-                sx={{ width: 100 }}
-              />
-            </ListItem>
-
-            <ListItem>
-              <ListItemIcon>
-                <ColorLensIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
-              </ListItemIcon>
-              <ListItemText 
-                primary="Color by Count" 
-                secondary="Gradient based on frequency"
-                secondaryTypographyProps={{
-                  sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
-                }}
-              />
-              <Switch
-                checked={settings.colorByCount}
-                onChange={(e) => setSettings(prev => ({ 
-                  ...prev, 
-                  colorByCount: e.target.checked 
-                }))}
-              />
-            </ListItem>
-
-            <ListItem>
-              <ListItemIcon>
-                <WarningIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
-              </ListItemIcon>
-              <ListItemText 
-                primary="Show Severity" 
-                secondary="Display severity indicator"
-                secondaryTypographyProps={{
-                  sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
-                }}
-              />
-              <Switch
-                checked={settings.showSeverity}
-                onChange={(e) => setSettings(prev => ({ 
-                  ...prev, 
-                  showSeverity: e.target.checked 
-                }))}
-              />
-            </ListItem>
-
+            {/* Animation Speed */}
             <ListItem>
               <ListItemIcon>
                 <SpeedIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
               </ListItemIcon>
               <ListItemText 
                 primary="Animation Speed" 
-                secondary="Control bubble movement speed"
+                secondary="Control movement speed"
                 secondaryTypographyProps={{
                   sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
                 }}
@@ -980,22 +860,23 @@ const BubbleChart = () => {
               />
             </ListItem>
 
+            {/* Show Severity */}
             <ListItem>
               <ListItemIcon>
-                <CompareArrowsIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
+                <WarningIcon sx={{ color: settings.darkMode ? 'white' : 'black' }} />
               </ListItemIcon>
               <ListItemText 
-                primary="Collisions" 
-                secondary="Enable bubble collisions"
+                primary="Show Severity" 
+                secondary="Indicate word severity"
                 secondaryTypographyProps={{
                   sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
                 }}
               />
               <Switch
-                checked={settings.collisions}
+                checked={settings.showSeverity}
                 onChange={(e) => setSettings(prev => ({ 
                   ...prev, 
-                  collisions: e.target.checked 
+                  showSeverity: e.target.checked 
                 }))}
               />
             </ListItem>

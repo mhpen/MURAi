@@ -218,7 +218,7 @@ const BubbleChart = () => {
     if (!bubbleData.length) return;
 
     const sizes = getResponsiveSizes(window.innerWidth);
-    const speedMultiplier = settings.reducedMotion ? 0.1 : 0.2;
+    const speedMultiplier = settings.reducedMotion ? 0 : 0.2;
     
     const maxCount = Math.max(...bubbleData.map(item => item.count));
     const minSize = sizes.minSize;
@@ -228,12 +228,21 @@ const BubbleChart = () => {
       const sizePercentage = item.count / maxCount;
       const size = Math.max(minSize, Math.min(maxSize, minSize + (sizePercentage * (maxSize - minSize))));
       
+      // Preserve existing position and velocity if they exist
+      const position = item.x && item.y ? { x: item.x, y: item.y } : getRandomPosition();
+      const velocity = item.velocityX && item.velocityY ? {
+        velocityX: item.velocityX,
+        velocityY: item.velocityY
+      } : {
+        velocityX: (Math.random() - 0.5) * speedMultiplier,
+        velocityY: (Math.random() - 0.5) * speedMultiplier
+      };
+      
       return {
         ...item,
-        ...getRandomPosition(),
+        ...position,
+        ...velocity,
         size,
-        velocityX: (Math.random() - 0.5) * speedMultiplier,
-        velocityY: (Math.random() - 0.5) * speedMultiplier,
         color: getColorByCategory(item.category, item.severity)
       };
     });
@@ -244,89 +253,53 @@ const BubbleChart = () => {
   const updateBubblePositions = useCallback(() => {
     if (settings.reducedMotion) return;
 
-    requestAnimationFrame(() => {
-      setBubbleData(prevData => {
-        const newData = [...prevData];
+    setBubbleData(prevData => {
+      return prevData.map(bubble => {
+        // Calculate new position
+        let newX = bubble.x + (bubble.velocityX * settings.animationSpeed);
+        let newY = bubble.y + (bubble.velocityY * settings.animationSpeed);
+
+        // Fixed boundary check (using percentage-based boundaries)
+        const padding = 5; // Percentage padding from edges
+        let newVelocityX = bubble.velocityX;
+        let newVelocityY = bubble.velocityY;
         
-        // Update positions
-        for (let i = 0; i < newData.length; i++) {
-          let bubble = newData[i];
-          
-          // Calculate new position
-          let newX = bubble.x + (bubble.velocityX * settings.animationSpeed);
-          let newY = bubble.y + (bubble.velocityY * settings.animationSpeed);
-
-          // Fixed boundary check (using percentage-based boundaries)
-          const padding = 5; // Percentage padding from edges
-          
-          // Bounce off walls with proper direction change
-          if (newX < padding) {
-            newX = padding;
-            bubble.velocityX = Math.abs(bubble.velocityX) * settings.bounciness;
-          } else if (newX > 100 - padding) {
-            newX = 100 - padding;
-            bubble.velocityX = -Math.abs(bubble.velocityX) * settings.bounciness;
-          }
-
-          if (newY < padding) {
-            newY = padding;
-            bubble.velocityY = Math.abs(bubble.velocityY) * settings.bounciness;
-          } else if (newY > 100 - padding) {
-            newY = 100 - padding;
-            bubble.velocityY = -Math.abs(bubble.velocityY) * settings.bounciness;
-          }
-
-          // Only check collisions if enabled
-          if (settings.collisions) {
-            for (let j = 0; j < newData.length; j++) {
-              if (i !== j) {
-                const other = newData[j];
-                const dx = newX - other.x;
-                const dy = newY - other.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const minDistance = 10; // Minimum distance between bubbles
-
-                if (distance < minDistance) {
-                  // Elastic collision response
-                  const angle = Math.atan2(dy, dx);
-                  
-                  // Swap velocities for elastic collision
-                  const tempVelX = bubble.velocityX;
-                  const tempVelY = bubble.velocityY;
-                  
-                  bubble.velocityX = other.velocityX * settings.bounciness;
-                  bubble.velocityY = other.velocityY * settings.bounciness;
-                  
-                  other.velocityX = tempVelX * settings.bounciness;
-                  other.velocityY = tempVelY * settings.bounciness;
-
-                  // Push bubbles apart to prevent sticking
-                  newX = other.x + (minDistance * Math.cos(angle));
-                  newY = other.y + (minDistance * Math.sin(angle));
-                  break;
-                }
-              }
-            }
-          }
-
-          // Apply minimum velocity threshold to prevent very slow movement
-          const minVelocity = 0.01;
-          if (Math.abs(bubble.velocityX) < minVelocity) {
-            bubble.velocityX = minVelocity * (Math.random() > 0.5 ? 1 : -1);
-          }
-          if (Math.abs(bubble.velocityY) < minVelocity) {
-            bubble.velocityY = minVelocity * (Math.random() > 0.5 ? 1 : -1);
-          }
-
-          // Update bubble position
-          bubble.x = newX;
-          bubble.y = newY;
+        // Bounce off walls
+        if (newX < padding) {
+          newX = padding;
+          newVelocityX = Math.abs(bubble.velocityX) * settings.bounciness;
+        } else if (newX > 100 - padding) {
+          newX = 100 - padding;
+          newVelocityX = -Math.abs(bubble.velocityX) * settings.bounciness;
         }
-        
-        return newData;
+
+        if (newY < padding) {
+          newY = padding;
+          newVelocityY = Math.abs(bubble.velocityY) * settings.bounciness;
+        } else if (newY > 100 - padding) {
+          newY = 100 - padding;
+          newVelocityY = -Math.abs(bubble.velocityY) * settings.bounciness;
+        }
+
+        // Apply minimum velocity threshold
+        const minVelocity = 0.05;
+        if (Math.abs(newVelocityX) < minVelocity) {
+          newVelocityX = minVelocity * (Math.random() > 0.5 ? 1 : -1);
+        }
+        if (Math.abs(newVelocityY) < minVelocity) {
+          newVelocityY = minVelocity * (Math.random() > 0.5 ? 1 : -1);
+        }
+
+        return {
+          ...bubble,
+          x: newX,
+          y: newY,
+          velocityX: newVelocityX,
+          velocityY: newVelocityY
+        };
       });
     });
-  }, [settings.reducedMotion, settings.bounciness, settings.collisions, settings.animationSpeed, bubbleData]);
+  }, [settings.reducedMotion, settings.bounciness, settings.animationSpeed]);
 
   // Add window resize handler
   useEffect(() => {
@@ -342,11 +315,22 @@ const BubbleChart = () => {
   useEffect(() => {
     processData();
     let animationId;
+    let lastTime = 0;
+    const fps = 60;
+    const interval = 1000 / fps;
     
-    const animate = () => {
-      if (!settings.reducedMotion) { // Add this check
-        updateBubblePositions();
+    const animate = (currentTime) => {
+      if (!lastTime) lastTime = currentTime;
+      
+      const delta = currentTime - lastTime;
+      
+      if (delta > interval) {
+        if (!settings.reducedMotion) {
+          updateBubblePositions();
+        }
+        lastTime = currentTime;
       }
+      
       animationId = requestAnimationFrame(animate);
     };
     
@@ -357,7 +341,7 @@ const BubbleChart = () => {
         cancelAnimationFrame(animationId);
       }
     };
-  }, [processData, updateBubblePositions, settings.reducedMotion]); // Add settings.reducedMotion to dependencies
+  }, [processData, updateBubblePositions, settings.reducedMotion]);
 
   const handleTimeFrameChange = (event) => {
     setTimeFrame(event.target.value);

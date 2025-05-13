@@ -42,6 +42,49 @@ import {
 import Logo from '../../assets/logo.png'; // Add your logo image
 import api from '@/utils/api';
 
+const BubbleComponent = memo(({ item, onClick }) => {
+  return (
+    <Box
+      onClick={onClick}
+      sx={{
+        position: 'absolute',
+        left: `${item.x}%`,
+        top: `${item.y}%`,
+        width: `${item.size}px`,
+        height: `${item.size}px`,
+        borderRadius: '50%',
+        backgroundColor: item.color,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transform: 'translate(-50%, -50%)',
+        cursor: 'pointer',
+        transition: 'transform 0.2s ease',
+        '&:hover': {
+          transform: 'translate(-50%, -50%) scale(1.1)',
+          zIndex: 2,
+        },
+      }}
+    >
+      {item.word && (
+        <Typography
+          sx={{
+            color: 'white',
+            fontSize: '0.8rem',
+            textAlign: 'center',
+            padding: '4px',
+          }}
+        >
+          {item.word}
+          <br />
+          {item.count}
+        </Typography>
+      )}
+    </Box>
+  );
+});
+
 const BubbleChart = () => {
   const [timeFrame, setTimeFrame] = useState('day');
   const [bubbleData, setBubbleData] = useState([]);
@@ -127,29 +170,37 @@ const BubbleChart = () => {
         params: { timeFrame }
       });
 
-      console.log('API Response:', response);
-      console.log('Response data:', response.data);
-
       if (!response.data) {
         throw new Error('No data received from server');
       }
 
-      // Handle both possible data structures: {words: [...]} or direct array
       const wordsData = Array.isArray(response.data) ? response.data : response.data.words;
 
       if (!Array.isArray(wordsData)) {
         throw new Error('Invalid data format received from server');
       }
 
-      // Remove the empty check here since we want to process even single items
-      const processedData = wordsData.map(item => ({
-        word: item.word || 'Unknown',
-        count: parseInt(item.count) || 0,
-        severity: parseInt(item.severity) || 1,
-        category: item.category || 'unknown',
-        ...getRandomPosition(),
-        color: getColorByCategory(item.category, item.severity)
-      }));
+      const sizes = getResponsiveSizes(window.innerWidth);
+      const maxCount = Math.max(...wordsData.map(item => parseInt(item.count) || 0));
+
+      const processedData = wordsData.map(item => {
+        const count = parseInt(item.count) || 0;
+        const sizePercentage = count / maxCount;
+        const size = Math.max(
+          sizes.minSize,
+          Math.min(sizes.maxSize, sizes.minSize + (sizePercentage * (sizes.maxSize - sizes.minSize)))
+        );
+
+        return {
+          word: item.word || 'Unknown',
+          count,
+          severity: parseInt(item.severity) || 1,
+          category: item.category || 'unknown',
+          ...getRandomPosition(),
+          size,
+          color: getColorByCategory(item.category, item.severity)
+        };
+      });
 
       console.log('Processed data:', processedData);
       setBubbleData(processedData);
@@ -161,9 +212,11 @@ const BubbleChart = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [timeFrame, settings.reducedMotion, getColorByCategory, getRandomPosition]);
+  }, [timeFrame, settings.reducedMotion, getColorByCategory, getRandomPosition, getResponsiveSizes]);
 
   const processData = useCallback(() => {
+    if (!bubbleData.length) return;
+
     const sizes = getResponsiveSizes(window.innerWidth);
     const speedMultiplier = settings.reducedMotion ? 0.1 : 0.2;
     
@@ -173,22 +226,20 @@ const BubbleChart = () => {
     
     const newBubbleData = bubbleData.map(item => {
       const sizePercentage = item.count / maxCount;
-      const size = minSize + (sizePercentage * (maxSize - minSize));
+      const size = Math.max(minSize, Math.min(maxSize, minSize + (sizePercentage * (maxSize - minSize))));
       
       return {
         ...item,
         ...getRandomPosition(),
-        size: size,
+        size,
         velocityX: (Math.random() - 0.5) * speedMultiplier,
         velocityY: (Math.random() - 0.5) * speedMultiplier,
-        color: settings.darkMode 
-          ? settings.bubbleColor 
-          : settings.bubbleColor.replace('rgb', 'rgba').replace(')', ', 0.8)')
+        color: getColorByCategory(item.category, item.severity)
       };
     });
     
     setBubbleData(newBubbleData);
-  }, [settings, getResponsiveSizes, bubbleData, getRandomPosition]);
+  }, [settings, getResponsiveSizes, bubbleData, getRandomPosition, getColorByCategory]);
 
   const updateBubblePositions = useCallback(() => {
     if (settings.reducedMotion) return;
@@ -438,6 +489,24 @@ const BubbleChart = () => {
         'radial-gradient(circle at 50% 50%, #1a1a1a 0%, #111111 100%)' : 
         'radial-gradient(circle at 50% 50%, #ffffff 0%, #f5f5f5 100%)'
     }}>
+      {/* Bubble Container */}
+      <Box sx={{ 
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+      }}>
+        {filteredBubbles.map((bubble, index) => (
+          <BubbleComponent
+            key={`${bubble.word}-${index}`}
+            item={{
+              ...bubble,
+              size: bubble.size || 60, // Provide default size if not set
+            }}
+            onClick={() => handleBubbleClick(bubble)}
+          />
+        ))}
+      </Box>
+
       {/* Toggle Button */}
       <Box
         onClick={() => setIsNavVisible(!isNavVisible)}
@@ -658,21 +727,6 @@ const BubbleChart = () => {
           </Box>
         </Box>
       </Slide>
-
-      {/* Bubble Container with adjusted boundaries */}
-      <Box sx={{ 
-        height: '100vh',
-        width: '100%',
-        position: 'relative',
-      }}>
-        {filteredBubbles.map((item, index) => (
-          <BubbleComponent
-            key={index}
-            item={item}
-            onClick={() => handleBubbleClick(item)}
-          />
-        ))}
-      </Box>
 
       <Dialog 
         open={!!selectedBubble} 

@@ -64,24 +64,6 @@ const BubbleChart = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Sample data with more realistic inappropriate words
-  const sampleData = {
-    words: [
-      { word: 'Offensive1', count: 156, severity: 8 },
-      { word: 'Harmful2', count: 89, severity: 5 },
-      { word: 'Toxic3', count: 120, severity: 7 },
-      { word: 'Hate4', count: 200, severity: 9 },
-      { word: 'Bullying5', count: 67, severity: 3 },
-      { word: 'Threat6', count: 250, severity: 10 },
-      { word: 'Slur7', count: 180, severity: 6 },
-      { word: 'Harassment8', count: 100, severity: 4 },
-      { word: 'Abuse9', count: 145, severity: 8 },
-      { word: 'Violence10', count: 167, severity: 9 },
-      { word: 'Discrimination11', count: 134, severity: 7 },
-      { word: 'Insult12', count: 98, severity: 5 },
-    ]
-  };
-
   const getRandomPosition = () => ({
     x: Math.random() * 90 + 5, // Keep within 5-95% range
     y: Math.random() * 90 + 5,
@@ -125,13 +107,13 @@ const BubbleChart = () => {
     const speedMultiplier = settings.reducedMotion ? 0.1 : 0.2;
     
     // Calculate the maximum count to normalize sizes
-    const maxCount = Math.max(...sampleData.words.map(item => item.count));
+    const maxCount = Math.max(...bubbleData.map(item => item.count));
     
     // Calculate minimum and maximum bubble sizes
     const minSize = sizes.minSize;
     const maxSize = sizes.maxSize;
     
-    const newBubbleData = sampleData.words.map(item => {
+    const newBubbleData = bubbleData.map(item => {
       // Calculate size based on count relative to maxCount
       const sizePercentage = item.count / maxCount;
       const size = minSize + (sizePercentage * (maxSize - minSize));
@@ -149,7 +131,7 @@ const BubbleChart = () => {
     });
     
     setBubbleData(newBubbleData);
-  }, [settings, getResponsiveSizes]);
+  }, [settings, getResponsiveSizes, bubbleData]);
 
   const updateBubblePositions = useCallback(() => {
     if (settings.reducedMotion) return;
@@ -236,7 +218,7 @@ const BubbleChart = () => {
         return newData;
       });
     });
-  }, [settings.reducedMotion, settings.bounciness, settings.collisions, settings.animationSpeed]);
+  }, [settings.reducedMotion, settings.bounciness, settings.collisions, settings.animationSpeed, bubbleData]);
 
   // Add window resize handler
   useEffect(() => {
@@ -273,11 +255,13 @@ const BubbleChart = () => {
     setTimeFrame(event.target.value);
   };
 
-  const handleBubbleClick = (bubble) => {
-    setSelectedBubble({
-      ...bubble,
-      trendData: getTrendData(bubble.word),
-    });
+  const handleBubbleClick = async (bubble) => {
+    setSelectedBubble(bubble);
+    const trendData = await getTrendData(bubble.word);
+    setSelectedBubble(prev => ({
+      ...prev,
+      trendData
+    }));
   };
 
   const handleSearch = (event) => {
@@ -290,81 +274,6 @@ const BubbleChart = () => {
     );
   }, [bubbleData, searchTerm]);
 
-  // Sample trend data
-  const getTrendData = (word) => {
-    return Array.from({ length: 24 }, (_, i) => ({
-      time: `${i}:00`,
-      count: Math.floor(Math.random() * 50 + 20),
-    }));
-  };
-
-  // Modify BubbleComponent to use responsive sizes
-  const BubbleComponent = memo(({ item, onClick }) => {
-    return (
-      <Box
-        onClick={onClick}
-        sx={{
-          position: 'absolute',
-          left: `${item.x}%`,
-          top: `${item.y}%`,
-          width: `${item.size}px`,
-          height: `${item.size}px`,
-          borderRadius: '50%',
-          backgroundColor: settings.darkMode ? item.color : item.color,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transform: 'translate(-50%, -50%)',
-          cursor: 'pointer',
-          transition: 'transform 0.2s ease',
-          '&:hover': {
-            transform: 'translate(-50%, -50%) scale(1.1)',
-            zIndex: 2,
-            boxShadow: settings.darkMode 
-              ? '0 0 20px rgba(255,255,255,0.2)'
-              : '0 0 20px rgba(0,0,0,0.2)',
-          },
-          boxShadow: settings.darkMode 
-            ? '0 4px 12px rgba(0,0,0,0.3)'
-            : '0 4px 12px rgba(0,0,0,0.1)',
-        }}
-      >
-        {settings.showLabels && (
-          <>
-            <Typography 
-              sx={{ 
-                color: settings.darkMode ? 'white' : 'black',
-                fontSize: `${Math.max(item.size * 0.2, 12)}px`, // Responsive font size
-                fontWeight: 'bold',
-                textAlign: 'center',
-                textShadow: settings.darkMode 
-                  ? '1px 1px 2px rgba(0,0,0,0.5)'
-                  : 'none',
-                width: '100%',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                padding: '0 4px',
-              }}
-            >
-              {item.word}
-            </Typography>
-            <Typography 
-              sx={{ 
-                color: settings.darkMode ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)',
-                fontSize: `${Math.max(item.size * 0.15, 10)}px`, // Smaller count size
-                mt: 0.5,
-              }}
-            >
-              {item.count}
-            </Typography>
-          </>
-        )}
-      </Box>
-    );
-  });
-
   const fetchBubbleData = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -374,28 +283,18 @@ const BubbleChart = () => {
         params: { timeFrame }
       });
 
-      // Log the received data for debugging
-      console.log('Raw API response:', data);
-
-      // More flexible data validation
-      if (!data) {
-        throw new Error('No data received from server');
+      // Validate data
+      if (!data || !Array.isArray(data.words)) {
+        throw new Error('Invalid data received from server');
       }
 
-      // If no words data, use sample data for development/testing
-      const wordsData = data.words || sampleData.words;
-      
-      if (!Array.isArray(wordsData)) {
-        throw new Error('Words data is not in the expected format');
-      }
-
-      if (wordsData.length === 0) {
+      if (data.words.length === 0) {
         setError('No data available');
         setBubbleData([]);
         return;
       }
 
-      const processedData = wordsData.map(item => ({
+      const processedData = data.words.map(item => ({
         word: item.word || 'Unknown',
         count: item.count || 0,
         severity: item.severity || 1,
@@ -410,27 +309,25 @@ const BubbleChart = () => {
       setBubbleData(processedData);
     } catch (error) {
       console.error('Error fetching bubble data:', error);
-      // Use sample data as fallback in case of error
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Using sample data as fallback');
-        const processedSampleData = sampleData.words.map(item => ({
-          ...item,
-          x: Math.random() * 80 + 10,
-          y: Math.random() * 80 + 10,
-          velocityX: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
-          velocityY: settings.reducedMotion ? 0 : (Math.random() - 0.5) * 0.2,
-          color: getColorByCategory(item.category || 'unknown', item.severity || 1)
-        }));
-        setBubbleData(processedSampleData);
-        setError('Using sample data (development mode)');
-      } else {
-        setError(error.message);
-        setBubbleData([]);
-      }
+      setError('Failed to load data. Please try again later.');
+      setBubbleData([]);
     } finally {
       setIsLoading(false);
     }
   }, [timeFrame, settings.reducedMotion]);
+
+  // Replace getTrendData with actual API call
+  const getTrendData = async (word) => {
+    try {
+      const { data } = await api.get('/api/analytics/word-trends', {
+        params: { word, timeFrame }
+      });
+      return data.trends;
+    } catch (error) {
+      console.error('Error fetching trend data:', error);
+      return [];
+    }
+  };
 
   // Function to determine bubble color based on category and severity
   const getColorByCategory = (category, severity) => {

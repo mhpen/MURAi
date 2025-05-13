@@ -119,7 +119,7 @@ const BubbleChart = () => {
   const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await api.get(`/api/analytics/flagged-words?timeFrame=${timeFrame}`);
+      const response = await api.get(`/api/analytics/bubble-chart?timeFrame=${timeFrame}`);
       
       // Transform API data to match required format
       const transformedData = response.data.map(item => ({

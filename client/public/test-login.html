@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Login</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <h1>Test Login</h1>
+    <form id="loginForm">
+        <div>
+            <label for="email">Email:</label>
+            <input type="email" id="email" value="admin@murai.com" required>
+        </div>
+        <div>
+            <label for="password">Password:</label>
+            <input type="password" id="password" value="admin123" required>
+        </div>
+        <button type="submit">Login</button>
+    </form>
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                resultDiv.innerHTML = 'Attempting login...';
+                
+                const response = await axios.post('http://localhost:5001/api/auth/login', {
+                    email,
+                    password
+                });
+                
+                resultDiv.innerHTML = `
+                    <h3>Login Successful!</h3>
+                    <p>Token: ${response.data.token}</p>
+                    <p>User: ${JSON.stringify(response.data.user)}</p>
+                `;
+                
+                console.log('Login response:', response.data);
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h3>Login Failed</h3>
+                    <p>Error: ${error.message}</p>
+                    <p>Details: ${JSON.stringify(error.response?.data || {})}</p>
+                `;
+                
+                console.error('Login error:', error);
+            }
+        });
+    </script>
+</body>
+</html>

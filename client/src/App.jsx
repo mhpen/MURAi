@@ -3,13 +3,14 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import AdminLogin from './components/Auth/adminLogin';
 import AdminDashboard from './components/Admin/adminDashboard';
 import ModelDashboard from './components/Admin/ModelDashboard';
+import ModelTestPage from './components/ModelTest/ModelTestPage';
 import AdminLayout from './components/Admin/AdminLayout';
 import Dashboard from './components/User/bubbleChart';
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = localStorage.getItem('userRole') === 'admin' && localStorage.getItem('token');
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" replace />;
   }
@@ -18,7 +19,7 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
-  
+
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
   };
@@ -28,7 +29,8 @@ function App() {
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Dashboard isDarkMode={isDarkMode} />} />
-        
+        <Route path="/model-test" element={<ModelTestPage isDarkMode={isDarkMode} />} />
+
         {/* Admin Routes */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />

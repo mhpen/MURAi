@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { BarChart3, PieChartIcon, LineChartIcon, Filter, Clock, Users, AlertCircle, Activity, ShieldAlert, AlertOctagon, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { BarChart3, PieChartIcon, LineChartIcon, Filter, Clock, Users, AlertCircle, Activity, ShieldAlert, AlertOctagon, CheckCircle, XCircle, Loader2, PieChart, LineChart } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { CHART_COLORS } from '@/constants/colors';
 import { Doughnut } from 'react-chartjs-2';
@@ -109,7 +109,7 @@ const Overview = ({ isDarkMode }) => {
       <div className="flex justify-center items-center h-[50vh]">
         <div className="text-center">
           <p className="text-red-500 mb-4">Error: {error}</p>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
           >
@@ -184,27 +184,27 @@ const Overview = ({ isDarkMode }) => {
         datasets: [{
       data: [data.languageBreakdown.filipino, data.languageBreakdown.english],
             backgroundColor: [
-                isDarkMode 
+                isDarkMode
                     ? 'rgba(156, 163, 175, 0.4)' // Light gray with low opacity for dark mode
                     : 'rgba(75, 85, 99, 0.2)',    // Dark gray with low opacity for light mode
-                isDarkMode 
+                isDarkMode
                     ? 'rgba(165, 180, 252, 0.4)'  // Light indigo with low opacity for dark mode
                     : 'rgba(99, 102, 241, 0.2)'   // Indigo with low opacity for light mode
             ],
             borderColor: [
-                isDarkMode 
+                isDarkMode
                     ? 'rgba(156, 163, 175, 0.9)' // Light gray with high opacity for dark mode
                     : 'rgba(75, 85, 99, 0.8)',    // Dark gray with high opacity for light mode
-                isDarkMode 
+                isDarkMode
                     ? 'rgba(165, 180, 252, 0.9)'  // Light indigo with high opacity for dark mode
                     : 'rgba(99, 102, 241, 0.8)'   // Indigo with high opacity for light mode
             ],
             borderWidth: 2,
             hoverBackgroundColor: [
-                isDarkMode 
+                isDarkMode
                     ? 'rgba(156, 163, 175, 0.6)' // Light gray with medium opacity for dark mode
                     : 'rgba(75, 85, 99, 0.4)',    // Dark gray with medium opacity for light mode
-                isDarkMode 
+                isDarkMode
                     ? 'rgba(165, 180, 252, 0.6)'  // Light indigo with medium opacity for dark mode
                     : 'rgba(99, 102, 241, 0.4)'   // Indigo with medium opacity for light mode
             ]
@@ -245,7 +245,7 @@ const Overview = ({ isDarkMode }) => {
         data.flaggedContent.automated,
         data.flaggedContent.userReported
       ],
-      backgroundColor: isDarkMode 
+      backgroundColor: isDarkMode
         ? ['rgba(125, 211, 252, 0.8)', 'rgba(253, 224, 71, 0.8)']
         : ['rgba(14, 165, 233, 0.7)', 'rgba(234, 179, 8, 0.7)'],
       borderWidth: 0
@@ -275,7 +275,7 @@ const Overview = ({ isDarkMode }) => {
 
     const handleDownload = async () => {
       if (!data) return;
-      
+
       try {
         await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -327,7 +327,7 @@ const Overview = ({ isDarkMode }) => {
           Object.entries(charts).filter(([_, value]) => value !== null)
         );
 
-        await generateReport({ 
+        await generateReport({
           ...data,
           charts: validCharts,
           reportDate: new Date().toLocaleString(),
@@ -341,98 +341,137 @@ const Overview = ({ isDarkMode }) => {
     return (
         <div className="space-y-8">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-semibold">Overview</h2>
+              <div className="flex items-center gap-3">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold">Key Metrics</h2>
+              </div>
               <DownloadButton onClick={handleDownload} isDarkMode={isDarkMode} />
             </div>
 
             {/* Primary KPIs */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* 1. Total Users */}
-        <KPICard
-          isDarkMode={isDarkMode}
-          title="Total Users"
-          value={data.additionalStats.totalUsers || 0}
-          subValue="Active accounts"
-          icon={Users}
-          className={cn(
-            "text-foreground",
-            isDarkMode ? "text-white/70" : "text-black/70"
-          )}
-        />
-
-        {/* 2. Total Flagged */}
+                {/* 1. Total Users */}
                 <KPICard
                     isDarkMode={isDarkMode}
-          title="Total Flagged"
-          value={data.totalFlagged || 0}
-          subValue={`${data.flaggedContent.weeklyChange || 0} this week`}
-                    icon={Filter}
+                    title="Total Users"
+                    value={data.additionalStats.totalUsers || 0}
+                    subValue="Active accounts"
+                    icon={Users}
+                    color="blue"
+                    trend={5}
+                    showProgress={true}
+                    progressValue={85}
                 />
 
-        {/* 3. User Reports */}
-        <KPICard
-          isDarkMode={isDarkMode}
-          title="User Reports"
-          value={data.flaggedContent.userReported || 0}
-          subValue="Community reports"
-          icon={Users}
-        />
-
-        {/* 4. Auto Detection */}
-        <KPICard
-          isDarkMode={isDarkMode}
-          title="Auto Detection"
-          value={`${calculatePercentage(data.flaggedContent.automated, data.flaggedContent.total)}%`}
-          subValue="Automated flags"
-          icon={ShieldAlert}
-        />
-
-        {/* 5. Pending Reports */}
-        <KPICard
-          isDarkMode={isDarkMode}
-          title="Pending Reports"
-          value={data.additionalStats.pendingReports || 0}
-          subValue="Awaiting review"
-          icon={AlertCircle}
-          className={data.additionalStats.pendingReports > 0 ? "border-yellow-500/50" : ""}
-        />
-
-        {/* 6. Accuracy */}
+                {/* 2. Total Flagged */}
                 <KPICard
                     isDarkMode={isDarkMode}
-          title="Accuracy"
-          value={`${data.moderationStats.accuracy || 0}%`}
-          subValue="Moderation accuracy"
-          icon={CheckCircle}
-        />
+                    title="Total Flagged"
+                    value={data.totalFlagged || 0}
+                    subValue={`${data.flaggedContent.weeklyChange || 0} this week`}
+                    icon={Filter}
+                    color="red"
+                    trend={data.flaggedContent.weeklyChange > 0 ? data.flaggedContent.weeklyChange : -3}
+                    showProgress={true}
+                    progressValue={60}
+                />
 
-        {/* 7. False Positives */}
+                {/* 3. User Reports */}
                 <KPICard
                     isDarkMode={isDarkMode}
-          title="False Positives"
-          value={data.moderationStats.falsePositives || 0}
-          subValue="Incorrect flags"
-          icon={XCircle}
-        />
+                    title="User Reports"
+                    value={data.flaggedContent.userReported || 0}
+                    subValue="Community reports"
+                    icon={Users}
+                    color="purple"
+                    showProgress={true}
+                    progressValue={calculatePercentage(data.flaggedContent.userReported, data.flaggedContent.total)}
+                />
 
-        {/* 8. 24h Activity */}
+                {/* 4. Auto Detection */}
                 <KPICard
                     isDarkMode={isDarkMode}
-          title="24h Reports"
-          value={data.additionalStats.reportsLast24H || 0}
-          subValue="Last 24 hours"
-          icon={Activity}
+                    title="Auto Detection"
+                    value={`${calculatePercentage(data.flaggedContent.automated, data.flaggedContent.total)}%`}
+                    subValue="Automated flags"
+                    icon={ShieldAlert}
+                    color="green"
+                    showProgress={true}
+                    progressValue={calculatePercentage(data.flaggedContent.automated, data.flaggedContent.total)}
+                />
+
+                {/* 5. Pending Reports */}
+                <KPICard
+                    isDarkMode={isDarkMode}
+                    title="Pending Reports"
+                    value={data.additionalStats.pendingReports || 0}
+                    subValue="Awaiting review"
+                    icon={AlertCircle}
+                    color="amber"
+                    trend={data.additionalStats.pendingReports > 5 ? 12 : -8}
+                    showProgress={data.additionalStats.pendingReports > 0}
+                    progressValue={Math.min(data.additionalStats.pendingReports / 10 * 100, 100)}
+                />
+
+                {/* 6. Accuracy */}
+                <KPICard
+                    isDarkMode={isDarkMode}
+                    title="Accuracy"
+                    value={`${data.moderationStats.accuracy || 0}%`}
+                    subValue="Moderation accuracy"
+                    icon={CheckCircle}
+                    color="green"
+                    showProgress={true}
+                    progressValue={data.moderationStats.accuracy || 0}
+                />
+
+                {/* 7. False Positives */}
+                <KPICard
+                    isDarkMode={isDarkMode}
+                    title="False Positives"
+                    value={data.moderationStats.falsePositives || 0}
+                    subValue="Incorrect flags"
+                    icon={XCircle}
+                    color="red"
+                    trend={-5}
+                />
+
+                {/* 8. 24h Activity */}
+                <KPICard
+                    isDarkMode={isDarkMode}
+                    title="24h Reports"
+                    value={data.additionalStats.reportsLast24H || 0}
+                    subValue="Last 24 hours"
+                    icon={Activity}
+                    color="blue"
+                    trend={8}
                 />
             </div>
 
+            {/* Chart Section Title */}
+            <div className="flex items-center gap-3 mt-10 mb-6">
+                <PieChartIcon className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold">Analytics & Insights</h2>
+            </div>
+
             {/* Secondary KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Language Distribution */}
                 <div className={cn(
-                    "border rounded-lg p-6",
-                    isDarkMode ? "border-white/5 bg-[#1A1A1A]" : "border-black/5"
+                    "border rounded-lg p-6 transition-all duration-200 hover:shadow-md",
+                    isDarkMode
+                        ? "border-gray-800 bg-gray-900/50 hover:bg-gray-900/80 hover:border-gray-700"
+                        : "border-gray-100 bg-white hover:border-gray-200"
                 )}>
-                    <h3 className="text-lg font-medium mb-4">Language Analysis</h3>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-medium">Language Analysis</h3>
+                        <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center",
+                            isDarkMode ? "bg-blue-900/20" : "bg-blue-50"
+                        )}>
+                            <PieChartIcon className="h-4 w-4 text-blue-500" />
+                        </div>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-4">
                             {/* Filipino Stats */}
@@ -451,16 +490,16 @@ const Overview = ({ isDarkMode }) => {
                   )}>{data.languageBreakdown.filipino} flags</span>
                                 </div>
                                 <div className="w-full bg-black/5 rounded-full h-2">
-                                    <div 
-                                        className="h-2 rounded-full" 
-                                        style={{ 
+                                    <div
+                                        className="h-2 rounded-full"
+                                        style={{
                       width: `${(data.languageBreakdown.filipino/(data.languageBreakdown.filipino + data.languageBreakdown.english))*100}%`,
                                             backgroundColor: getColor(CHART_COLORS.primary.filipino, 'main', isDarkMode)
                                         }}
                                     />
                                 </div>
                             </div>
-                            
+
                             {/* English Stats */}
                             <div>
                                 <div className={cn(
@@ -477,9 +516,9 @@ const Overview = ({ isDarkMode }) => {
                   )}>{data.languageBreakdown.english} flags</span>
                                 </div>
                                 <div className="w-full bg-black/5 rounded-full h-2">
-                                    <div 
-                                        className="h-2 rounded-full" 
-                                        style={{ 
+                                    <div
+                                        className="h-2 rounded-full"
+                                        style={{
                       width: `${(data.languageBreakdown.english/(data.languageBreakdown.filipino + data.languageBreakdown.english))*100}%`,
                                             backgroundColor: getColor(CHART_COLORS.primary.english, 'main', isDarkMode)
                                         }}
@@ -487,7 +526,7 @@ const Overview = ({ isDarkMode }) => {
                                 </div>
                             </div>
                         </div>
-                        
+
                         {/* Language Chart */}
                         <div className="h-[120px] flex items-center justify-center">
                             <Doughnut data={languageData} options={doughnutOptions} ref={languageChartRef} />
@@ -496,18 +535,28 @@ const Overview = ({ isDarkMode }) => {
                 </div>
 
                 {/* Website Sources */}
-        <WebsiteSourcesSection 
-          data={data} 
-          isDarkMode={isDarkMode} 
+        <WebsiteSourcesSection
+          data={data}
+          isDarkMode={isDarkMode}
           calculatePercentage={calculatePercentage}
         />
 
                 {/* Quick Sentiment Overview */}
                 <div className={cn(
-                    "border rounded-lg p-6",
-                    isDarkMode ? "border-white/5 bg-[#1A1A1A]" : "border-black/5"
+                    "border rounded-lg p-6 transition-all duration-200 hover:shadow-md",
+                    isDarkMode
+                        ? "border-gray-800 bg-gray-900/50 hover:bg-gray-900/80 hover:border-gray-700"
+                        : "border-gray-100 bg-white hover:border-gray-200"
                 )}>
-                    <h3 className="text-lg font-medium mb-4">Quick Sentiment Overview</h3>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-medium">Sentiment Analysis</h3>
+                        <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center",
+                            isDarkMode ? "bg-green-900/20" : "bg-green-50"
+                        )}>
+                            <BarChart3 className="h-4 w-4 text-green-500" />
+                        </div>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-3">
               {Object.entries(data.sentimentBreakdown)
@@ -530,11 +579,11 @@ const Overview = ({ isDarkMode }) => {
                                         </span>
                                     </div>
                                     <div className="w-full bg-black/5 rounded-full h-2">
-                                        <div 
-                                            className="h-2 rounded-full" 
-                                            style={{ 
+                                        <div
+                                            className="h-2 rounded-full"
+                                            style={{
                         width: `${(count/data.sentimentBreakdown.total)*100}%`,
-                                                backgroundColor: sentiment.toLowerCase() === 'positive' 
+                                                backgroundColor: sentiment.toLowerCase() === 'positive'
                                                     ? (isDarkMode ? 'rgba(74, 222, 128, 0.8)' : 'rgba(22, 163, 74, 0.7)')
                                                     : sentiment.toLowerCase() === 'neutral'
                                                         ? (isDarkMode ? 'rgba(203, 213, 225, 0.8)' : 'rgba(148, 163, 184, 0.7)')
@@ -545,7 +594,7 @@ const Overview = ({ isDarkMode }) => {
                                 </div>
                             ))}
                         </div>
-                        
+
                         {/* Sentiment Chart */}
                         <div className="h-[120px] flex items-center justify-center">
                             <Doughnut data={sentimentData} options={doughnutOptions} ref={sentimentChartRef} />
@@ -554,13 +603,29 @@ const Overview = ({ isDarkMode }) => {
                 </div>
             </div>
 
+            {/* Detection Methods Section Title */}
+            <div className="flex items-center gap-3 mt-10 mb-6">
+                <LineChart className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold">Detection & Accuracy</h2>
+            </div>
+
             {/* Automated vs Manual Comparison */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className={cn(
-                    "border rounded-lg p-6",
-                    isDarkMode ? "border-white/5 bg-[#1A1A1A]" : "border-black/5"
+                    "border rounded-lg p-6 transition-all duration-200 hover:shadow-md",
+                    isDarkMode
+                        ? "border-gray-800 bg-gray-900/50 hover:bg-gray-900/80 hover:border-gray-700"
+                        : "border-gray-100 bg-white hover:border-gray-200"
                 )}>
-          <h3 className="text-lg font-medium mb-6">Detection Method Breakdown</h3>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-medium">Detection Methods</h3>
+                        <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center",
+                            isDarkMode ? "bg-blue-900/20" : "bg-blue-50"
+                        )}>
+                            <PieChart className="h-4 w-4 text-blue-500" />
+                        </div>
+                    </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-6">
                         <div className="space-y-3">
@@ -570,9 +635,9 @@ const Overview = ({ isDarkMode }) => {
                                 </div>
                 <div className="relative w-full h-2">
                   <div className="absolute inset-0 bg-black/5 rounded-full" />
-                                    <div 
+                                    <div
                     className="absolute inset-0 rounded-full transition-all duration-300"
-                                        style={{ 
+                                        style={{
                       width: `${(data.flaggedContent.automated / (data.flaggedContent.automated + data.flaggedContent.userReported) * 100).toFixed(1)}%`,
                                             backgroundColor: isDarkMode ? 'rgba(125, 211, 252, 0.8)' : 'rgba(14, 165, 233, 0.7)'
                                         }}
@@ -587,9 +652,9 @@ const Overview = ({ isDarkMode }) => {
                                 </div>
                 <div className="relative w-full h-2">
                   <div className="absolute inset-0 bg-black/5 rounded-full" />
-                                    <div 
+                                    <div
                     className="absolute inset-0 rounded-full transition-all duration-300"
-                                        style={{ 
+                                        style={{
                       width: `${(data.flaggedContent.userReported / (data.flaggedContent.automated + data.flaggedContent.userReported) * 100).toFixed(1)}%`,
                                             backgroundColor: isDarkMode ? 'rgba(253, 224, 71, 0.8)' : 'rgba(234, 179, 8, 0.7)'
                                         }}
@@ -597,7 +662,7 @@ const Overview = ({ isDarkMode }) => {
                                 </div>
                             </div>
                         </div>
-                        
+
             <div className="h-[160px] flex items-center justify-center">
                             <Doughnut data={detectionData} options={doughnutOptions} ref={detectionChartRef} />
                         </div>
@@ -606,10 +671,20 @@ const Overview = ({ isDarkMode }) => {
 
                 {/* Moderation Accuracy Details */}
                 <div className={cn(
-                    "border rounded-lg p-6",
-                    isDarkMode ? "border-white/5 bg-[#1A1A1A]" : "border-black/5"
+                    "border rounded-lg p-6 transition-all duration-200 hover:shadow-md",
+                    isDarkMode
+                        ? "border-gray-800 bg-gray-900/50 hover:bg-gray-900/80 hover:border-gray-700"
+                        : "border-gray-100 bg-white hover:border-gray-200"
                 )}>
-                    <h3 className="text-lg font-medium mb-4">Moderation Accuracy Details</h3>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-medium">Moderation Accuracy</h3>
+                        <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center",
+                            isDarkMode ? "bg-green-900/20" : "bg-green-50"
+                        )}>
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                        </div>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-3">
                             <div>
@@ -618,9 +693,9 @@ const Overview = ({ isDarkMode }) => {
                   <span className="font-medium">{data.moderationStats.truePositives} flags</span>
                                 </div>
                                 <div className="w-full bg-green-100/20 h-2 rounded-full">
-                                    <div 
-                                        className="h-2 rounded-full" 
-                                        style={{ 
+                                    <div
+                                        className="h-2 rounded-full"
+                                        style={{
                       width: `${(data.moderationStats.truePositives/(data.moderationStats.truePositives + data.moderationStats.falsePositives))*100}%`,
                                             backgroundColor: isDarkMode ? 'rgba(134, 239, 172, 0.8)' : 'rgba(34, 197, 94, 0.7)'
                                         }}
@@ -633,9 +708,9 @@ const Overview = ({ isDarkMode }) => {
                   <span className="font-medium">{data.moderationStats.falsePositives} flags</span>
                                 </div>
                                 <div className="w-full bg-red-100/20 h-2 rounded-full">
-                                    <div 
-                                        className="h-2 rounded-full" 
-                                        style={{ 
+                                    <div
+                                        className="h-2 rounded-full"
+                                        style={{
                       width: `${(data.moderationStats.falsePositives/(data.moderationStats.truePositives + data.moderationStats.falsePositives))*100}%`,
                                             backgroundColor: isDarkMode ? 'rgba(254, 202, 202, 0.8)' : 'rgba(220, 38, 38, 0.7)'
                                         }}
@@ -643,7 +718,7 @@ const Overview = ({ isDarkMode }) => {
                                 </div>
                             </div>
                         </div>
-                        
+
                         {/* Accuracy Chart */}
                         <div className="h-[120px] flex items-center justify-center">
                             <Doughnut data={accuracyData} options={doughnutOptions} ref={accuracyChartRef} />
@@ -659,10 +734,20 @@ const WebsiteSourcesSection = ({ data, isDarkMode, calculatePercentage }) => {
   if (!data.websiteSources || data.websiteSources.length === 0) {
     return (
       <div className={cn(
-        "border rounded-lg p-6",
-        isDarkMode ? "border-white/5 bg-[#1A1A1A]" : "border-black/5"
+        "border rounded-lg p-6 transition-all duration-200 hover:shadow-md",
+        isDarkMode
+            ? "border-gray-800 bg-gray-900/50 hover:bg-gray-900/80 hover:border-gray-700"
+            : "border-gray-100 bg-white hover:border-gray-200"
       )}>
-        <h3 className="text-lg font-medium mb-4">Website Sources</h3>
+        <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium">Website Sources</h3>
+            <div className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center",
+                isDarkMode ? "bg-purple-900/20" : "bg-purple-50"
+            )}>
+                <LineChart className="h-4 w-4 text-purple-500" />
+            </div>
+        </div>
         <div className="flex items-center justify-center h-[200px] text-gray-500">
           No website data available
         </div>
@@ -672,10 +757,20 @@ const WebsiteSourcesSection = ({ data, isDarkMode, calculatePercentage }) => {
 
   return (
     <div className={cn(
-      "border rounded-lg p-6",
-      isDarkMode ? "border-white/5 bg-[#1A1A1A]" : "border-black/5"
+      "border rounded-lg p-6 transition-all duration-200 hover:shadow-md",
+      isDarkMode
+          ? "border-gray-800 bg-gray-900/50 hover:bg-gray-900/80 hover:border-gray-700"
+          : "border-gray-100 bg-white hover:border-gray-200"
     )}>
-      <h3 className="text-lg font-medium mb-4">Website Sources</h3>
+      <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium">Website Sources</h3>
+          <div className={cn(
+              "w-8 h-8 rounded-full flex items-center justify-center",
+              isDarkMode ? "bg-purple-900/20" : "bg-purple-50"
+          )}>
+              <LineChart className="h-4 w-4 text-purple-500" />
+          </div>
+      </div>
       <div className="h-[200px] overflow-y-auto pr-2 custom-scrollbar">
         <div className="space-y-4">
           {data.websiteSources.map((source, index) => (
@@ -696,10 +791,10 @@ const WebsiteSourcesSection = ({ data, isDarkMode, calculatePercentage }) => {
                 </span>
               </div>
               <div className="w-full bg-black/5 rounded-full h-2.5">
-                <div 
-                  className="bg-black/20 h-2.5 rounded-full" 
-                  style={{ 
-                    width: `${calculatePercentage(source.count, data.flaggedContent.total)}%` 
+                <div
+                  className="bg-black/20 h-2.5 rounded-full"
+                  style={{
+                    width: `${calculatePercentage(source.count, data.flaggedContent.total)}%`
                   }}
                 />
               </div>
@@ -711,4 +806,4 @@ const WebsiteSourcesSection = ({ data, isDarkMode, calculatePercentage }) => {
   );
 };
 
-export default Overview; 
+export default Overview;

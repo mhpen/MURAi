@@ -23,18 +23,63 @@ const AdminLogin = () => {
         setStatus({ type: '', message: '' });
 
         try {
-            console.log('Attempting login to:', import.meta.env.VITE_API_URL);
-            
-            const { data } = await api.post('/api/users/auth/login', {
-                email,
-                password
+            // More detailed logging
+            console.log('Environment variables:', {
+                VITE_API_URL: import.meta.env.VITE_API_URL,
+                mode: import.meta.env.MODE,
+                baseURL: api.defaults.baseURL
             });
 
-            console.log('Login successful:', data);
+            console.log('Attempting login with credentials:', { email, password: '******' });
 
-            // Store token and user info
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('userRole', data.user.role);
+            // Try with direct axios instead of the api instance
+            console.log('Making direct axios request to http://localhost:5001/api/auth/login');
+
+            let responseData;
+
+            // First try with our API instance
+            try {
+                const response = await api.post('/api/auth/login', {
+                    email,
+                    password
+                });
+                responseData = response.data;
+                console.log('API instance succeeded');
+            } catch (apiError) {
+                console.error('API instance failed:', apiError.message);
+
+                // If that fails, try with direct axios
+                console.log('Trying direct axios as fallback...');
+                try {
+                    // Need to import axios at the top of the file
+                    const axios = (await import('axios')).default;
+                    const response = await axios.post('http://localhost:5001/api/auth/login', {
+                        email,
+                        password
+                    }, {
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    responseData = response.data;
+                    console.log('Direct axios succeeded');
+                } catch (directError) {
+                    console.error('Direct axios also failed:', directError.message);
+                    throw directError; // Re-throw to be caught by the outer catch
+                }
+            }
+
+            console.log('Login successful:', responseData);
+
+            // Validate token format before storing
+            if (responseData.token && responseData.token.split('.').length === 3) {
+                // Store token and user info
+                localStorage.setItem('token', responseData.token);
+                localStorage.setItem('userRole', responseData.user.role);
+            } else {
+                console.error('Received malformed token from server');
+                throw new Error('Invalid authentication token received');
+            }
 
             // Handle remember me
             if (rememberMe) {
@@ -53,7 +98,7 @@ const AdminLogin = () => {
                 response: error.response?.data,
                 status: error.response?.status
             });
-            
+
             setStatus({
                 type: 'error',
                 message: error.response?.data?.error || error.message || 'Invalid credentials, please try again.'
@@ -86,8 +131,8 @@ const AdminLogin = () => {
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {status.message && (
                             <div className={`p-4 rounded-lg text-sm font-medium ${
-                                status.type === 'error' 
-                                    ? 'bg-red-50 text-red-600 border border-red-200' 
+                                status.type === 'error'
+                                    ? 'bg-red-50 text-red-600 border border-red-200'
                                     : 'bg-green-50 text-green-600 border border-green-200'
                             }`}>
                                 {status.message}
@@ -145,8 +190,8 @@ const AdminLogin = () => {
                                     Remember me
                                 </label>
                             </div>
-                            <Button 
-                                variant="link" 
+                            <Button
+                                variant="link"
                                 className="px-0 text-black hover:text-black/70 font-medium"
                             >
                                 Forgot Password?

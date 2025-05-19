@@ -1,12 +1,50 @@
-# React + Vite
+# MURAi Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the client application for the MURAi Tagalog Profanity Detection System. It provides a user interface for interacting with the MURAi API and visualizing profanity detection results.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Admin dashboard with analytics and statistics
+- Bubble chart visualization of flagged words
+- User authentication and authorization
+- Real-time data visualization
+- Responsive design for mobile and desktop
 
-## Expanding the ESLint configuration
+## Technologies Used
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- React 19
+- Vite 6
+- Material UI
+- Recharts for data visualization
+- Axios for API communication
+- React Router for navigation
+
+## Environment Setup
+
+The application uses environment variables for configuration:
+
+- `VITE_API_URL`: The URL of the MURAi API server (default: https://murai-qgd8.onrender.com)
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+## Deployment
+
+The application is deployed on Vercel at [https://murai.vercel.app](https://murai.vercel.app).
+
+## License
+
+This project is proprietary and confidential.

@@ -1,0 +1,44 @@
+# Virtual environments
+bert_venv/
+roberta_venv/
+venv/
+env/
+.env
+simple_venv/
+venv_new/
+
+# Git
+.git
+.gitignore
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Logs
+*.log
+
+# Local development settings
+.vscode/
+.idea/
+
+# Large model files that will be downloaded at runtime
+# models/
+
+# Exclude test files
+test_*.py
+*_test.py
+
+# Exclude documentation
+README.md
+DEPLOYMENT.md
+LICENSE

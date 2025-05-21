@@ -1,17 +1,19 @@
 import { Router } from 'express';
 import { auth, isAdmin } from '../middleware/auth.js';
-import { login } from '../controllers/auth.controller.js';
+import { login, register, logout, getProfile, updateProfile } from '../controllers/auth.controller.js';
 
 const router = Router();
 
 // Auth routes
-router.post('/register', async (req, res) => {
-  // TODO: Implement user registration
-});
+router.post('/auth/login', login);
+router.post('/auth/register', register);
+router.post('/auth/logout', logout);
 
-router.post('/login', login);
+// Protected routes
+router.get('/profile', auth, getProfile);
+router.put('/profile', auth, updateProfile);
 
-// User management routes
+// Admin routes
 router.get('/', [auth, isAdmin], async (req, res) => {
   // TODO: Implement get all users
 });

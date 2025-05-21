@@ -32,41 +32,19 @@ const AdminLogin = () => {
 
             console.log('Attempting login with credentials:', { email, password: '******' });
 
-            // Try with direct axios instead of the api instance
-            console.log('Making direct axios request to http://localhost:5001/api/auth/login');
-
             let responseData;
 
-            // First try with our API instance
+            // Use our API instance
             try {
                 const response = await api.post('/api/auth/login', {
                     email,
                     password
                 });
                 responseData = response.data;
-                console.log('API instance succeeded');
+                console.log('Login request succeeded');
             } catch (apiError) {
-                console.error('API instance failed:', apiError.message);
-
-                // If that fails, try with direct axios
-                console.log('Trying direct axios as fallback...');
-                try {
-                    // Need to import axios at the top of the file
-                    const axios = (await import('axios')).default;
-                    const response = await axios.post('http://localhost:5001/api/auth/login', {
-                        email,
-                        password
-                    }, {
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    responseData = response.data;
-                    console.log('Direct axios succeeded');
-                } catch (directError) {
-                    console.error('Direct axios also failed:', directError.message);
-                    throw directError; // Re-throw to be caught by the outer catch
-                }
+                console.error('Login request failed:', apiError.message);
+                throw apiError;
             }
 
             console.log('Login successful:', responseData);

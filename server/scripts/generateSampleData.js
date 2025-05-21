@@ -12,6 +12,7 @@ import {
   SystemLog,
   User
 } from '../models/index.js';
+import createAdminUser from './createAdmin.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -69,6 +70,12 @@ const generateSampleData = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('Connected to MongoDB');
+
+    // Ensure we have an admin user
+    const adminUser = await createAdminUser();
+    if (!adminUser) {
+      throw new Error('Failed to create or find admin user');
+    }
 
     // Create websites
     const websites = await Promise.all(
@@ -139,7 +146,7 @@ const generateSampleData = async () => {
         const inappropriateWord = inappropriateWords[language][Math.floor(Math.random() * inappropriateWords[language].length)];
 
         const report = new ReportedContent({
-          user_id: (await User.findOne({ role: 'admin' }))._id,
+          user_id: adminUser._id,
           website_id: websites[Math.floor(Math.random() * websites.length)]._id,
           content_text: `${baseText} ${inappropriateWord}`,
           report_reason: `Contains inappropriate word: ${inappropriateWord}`,
@@ -208,7 +215,7 @@ const generateSampleData = async () => {
       Array(30).fill(null).map(async (_, index) => {
         const log = new SystemLog({
           timestamp: generateRandomDate(),
-          user_id: (await User.findOne({ role: 'admin' }))._id,
+          user_id: adminUser._id,
           action: ['login', 'detection_run', 'report_reviewed', 'model_updated', 'config_changed'][Math.floor(Math.random() * 5)],
           target: ['user', 'text', 'website', 'model', 'system'][Math.floor(Math.random() * 5)],
           target_id: websites[Math.floor(Math.random() * websites.length)]._id,
@@ -230,12 +237,130 @@ const generateSampleData = async () => {
 
     console.log('Successfully generated all sample data');
     await mongoose.disconnect();
-    process.exit(0);
+    return {
+      userId: adminUser._id,
+      websites,
+      detectedTexts,
+      detectedWords: await Promise.all(
+        Array(30).fill(null).map(async (_, index) => {
+          const word = new DetectedWord({
+            word: inappropriateWords[languages[Math.floor(Math.random() * languages.length)]][Math.floor(Math.random() * inappropriateWords[languages[Math.floor(Math.random() * languages.length)]].length)],
+            website_id: websites[Math.floor(Math.random() * websites.length)]._id,
+            detected_texts_id: detectedTexts[Math.floor(Math.random() * detectedTexts.length)]._id,
+            language: languages[Math.floor(Math.random() * languages.length)],
+            detected_at: generateRandomDate(),
+            frequency: Math.floor(Math.random() * 20) + 1,
+            category: wordCategories[Math.floor(Math.random() * wordCategories.length)],
+            severity_level: Math.floor(Math.random() * 5) + 1
+          });
+          return word.save();
+        })
+      ),
+      reports: await Promise.all(
+        Array(30).fill(null).map(async (_, index) => {
+          const language = languages[Math.floor(Math.random() * languages.length)];
+          const baseText = sampleTexts[language][Math.floor(Math.random() * sampleTexts[language].length)];
+          const inappropriateWord = inappropriateWords[language][Math.floor(Math.random() * inappropriateWords[language].length)];
+
+          const report = new ReportedContent({
+            user_id: adminUser._id,
+            website_id: websites[Math.floor(Math.random() * websites.length)]._id,
+            content_text: `${baseText} ${inappropriateWord}`,
+            report_reason: `Contains inappropriate word: ${inappropriateWord}`,
+            content_type: contentTypes[Math.floor(Math.random() * contentTypes.length)],
+            language,
+            report_timestamp: generateRandomDate(),
+            status: ['pending', 'reviewed', 'dismissed'][Math.floor(Math.random() * 3)],
+            verified: Math.random() > 0.3
+          });
+          return report.save();
+        })
+      ),
+      modelMetrics: await Promise.all(
+        Array(30).fill(null).map(async (_, index) => {
+          const metrics = new ModelMetrics({
+            timestamp: generateRandomDate(),
+            version: `1.${Math.floor(index / 10) + 1}.${index % 10}`,
+            performance: {
+              accuracy: 0.75 + (Math.random() * 0.2),
+              precision: 0.70 + (Math.random() * 0.25),
+              recall: 0.65 + (Math.random() * 0.3),
+              f1_score: 0.68 + (Math.random() * 0.27)
+            },
+            training_info: {
+              dataset_size: 5000 + (Math.floor(Math.random() * 15000)),
+              training_duration: `${Math.floor(Math.random() * 180) + 60} minutes`
+            },
+            confusion_matrix: {
+              TP: Math.floor(Math.random() * 1000) + 500,
+              FP: Math.floor(Math.random() * 200) + 50,
+              TN: Math.floor(Math.random() * 1000) + 500,
+              FN: Math.floor(Math.random() * 200) + 50
+            }
+          });
+          return metrics.save();
+        })
+      ),
+      modelLogs: await Promise.all(
+        Array(30).fill(null).map(async (_, index) => {
+          const log = new ModelLog({
+            timestamp: generateRandomDate(),
+            type: ['info', 'error', 'warning'][Math.floor(Math.random() * 3)],
+            message: [
+              'Model training completed successfully',
+              'New version deployment started',
+              'Performance threshold reached',
+              'Dataset validation completed',
+              'Error in prediction pipeline',
+              'Warning: High false positive rate detected'
+            ][Math.floor(Math.random() * 6)],
+            model_version: `1.${Math.floor(index / 10) + 1}.${index % 10}`
+          });
+          return log.save();
+        })
+      ),
+      systemLogs: await Promise.all(
+        Array(30).fill(null).map(async (_, index) => {
+          const log = new SystemLog({
+            timestamp: generateRandomDate(),
+            user_id: adminUser._id,
+            action: ['login', 'detection_run', 'report_reviewed', 'model_updated', 'config_changed'][Math.floor(Math.random() * 5)],
+            target: ['user', 'text', 'website', 'model', 'system'][Math.floor(Math.random() * 5)],
+            target_id: websites[Math.floor(Math.random() * websites.length)]._id,
+            status: ['success', 'failed'][Math.floor(Math.random() * 2)],
+            message: [
+              'User authentication successful',
+              'Content detection completed',
+              'Report verification finished',
+              'System configuration updated',
+              'Backup process completed',
+              'Database maintenance performed'
+            ][Math.floor(Math.random() * 6)],
+            severity: ['info', 'warning', 'error'][Math.floor(Math.random() * 3)]
+          });
+          return log.save();
+        })
+      )
+    };
   } catch (error) {
     console.error('Error generating sample data:', error);
     await mongoose.disconnect();
-    process.exit(1);
+    throw error;
   }
 };
 
-generateSampleData(); 
+// Run the function if this file is run directly
+if (process.argv[1] === new URL(import.meta.url).pathname) {
+  generateSampleData()
+    .then((sampleData) => {
+      console.log('Sample data generation complete');
+      console.log('Sample data:', sampleData);
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('Failed to generate sample data:', error);
+      process.exit(1);
+    });
+}
+
+export default generateSampleData; 

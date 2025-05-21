@@ -2,12 +2,17 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import mongoose from 'mongoose';
+import helmet from 'helmet';
 import routes from './routes/index.js';
 import adminRoutes from './routes/admin.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import dotenv from 'dotenv';
+import { corsMiddleware } from './middleware/corsMiddleware.js';
 
 dotenv.config();
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://murai.vercel.app';
+
 
 const app = express();
 
@@ -25,14 +30,53 @@ mongoose.connection.on('disconnected', () => {
   console.log('MongoDB disconnected');
 });
 
-// Enhanced CORS configuration
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'], // Add your client URLs
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Authorization']
+// Middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'", FRONTEND_URL],
+      connectSrc: ["'self'", FRONTEND_URL],
+      frameSrc: ["'self'", FRONTEND_URL],
+      imgSrc: ["'self'", "data:", "blob:"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      frameAncestors: ["'self'", FRONTEND_URL]
+    }
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
+
+// Enhanced CORS configuration for development
+app.use(cors({
+  origin: process.env.NODE_ENV === 'development' ?
+    ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174', 'http://127.0.0.1:5175', 'http://127.0.0.1:5176'] :
+    FRONTEND_URL,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Authorization'],
+  optionsSuccessStatus: 200
+}));
+
+// Additional CORS headers for development
+if (process.env.NODE_ENV === 'development') {
+  app.use((req, res, next) => {
+    // Allow requests from any origin in development
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+} else {
+  app.use(corsMiddleware);
+}
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -52,7 +96,7 @@ app.use('/api/admin', adminRoutes);
 
 // Health check route
 app.get('/health', (req, res) => {
-  res.json({ 
+  res.json({
     status: 'ok',
     mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });

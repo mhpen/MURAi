@@ -1,0 +1,36 @@
+# Virtual environments
+**/venv/
+**/env/
+**/.env
+**/bert_venv/
+**/roberta_venv/
+**/simple_venv/
+**/venv_new/
+**/__pycache__/
+
+# Python cache files
+**/*.py[cod]
+**/*$py.class
+**/*.so
+**/.Python
+**/.pytest_cache/
+
+# Distribution / packaging
+**/dist/
+**/build/
+**/*.egg-info/
+
+# Logs
+**/*.log
+
+# Local development settings
+**/.vscode/
+**/.idea/
+
+# Large model files that will be downloaded at runtime
+# Uncomment if you want to exclude large model files
+# **/models/
+
+# OS specific files
+.DS_Store
+Thumbs.db

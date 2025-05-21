@@ -1,24 +1,39 @@
 {
-  "name": "server",
+  "name": "murai-server",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "MURAi Tagalog Profanity Detection System - Server",
+  "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "create-admin": "node scripts/createAdmin.js",
+    "generate-data": "node scripts/generateSampleData.js",
+    "generate-metrics": "node scripts/generateModelMetrics.js",
+    "setup": "node scripts/createAdmin.js && node scripts/generateSampleData.js && node scripts/generateModelMetrics.js",
+    "verify-admin": "node scripts/verifyAdmin.js",
+    "force-admin": "node scripts/forceCreateAdmin.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["tagalog", "profanity", "detection", "nlp", "api"],
+  "author": "mhpen",
   "license": "ISC",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mhpen/MURAi-server"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
+    "axios": "^1.9.0",
     "bcryptjs": "^3.0.2",
     "chartjs-node-canvas": "^5.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "helmet": "^8.1.0",
     "html2canvas": "^1.4.1",
     "jsonwebtoken": "^9.0.2",
     "jspdf": "^3.0.1",

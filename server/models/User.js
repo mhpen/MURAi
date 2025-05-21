@@ -4,25 +4,22 @@ import bcrypt from 'bcryptjs';
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: [true, 'Name is required'],
-    trim: true
+    required: true
   },
   email: {
     type: String,
-    required: [true, 'Email is required'],
+    required: true,
     unique: true,
-    trim: true,
     lowercase: true
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters'],
-    select: false // This ensures password isn't returned in queries by default
+    required: true,
+    select: false
   },
   role: {
     type: String,
-    enum: ['user', 'admin', 'moderator'],
+    enum: ['user', 'admin'],
     default: 'user'
   },
   account_status: {
@@ -37,7 +34,7 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Pre-save middleware to hash password
+// Hash password before saving
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   
@@ -52,8 +49,11 @@ userSchema.pre('save', async function(next) {
 
 // Method to compare password
 userSchema.methods.comparePassword = async function(candidatePassword) {
-  if (!this.password) return false;
-  return bcrypt.compare(candidatePassword, this.password);
+  try {
+    return await bcrypt.compare(candidatePassword, this.password);
+  } catch (error) {
+    throw error;
+  }
 };
 
 const User = mongoose.model('User', userSchema);

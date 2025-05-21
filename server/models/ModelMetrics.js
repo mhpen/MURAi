@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 const modelMetricsSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now },
   version: { type: String, required: true },
+  model_type: { type: String, enum: ['bert', 'roberta'], default: 'roberta' },
   performance: {
     accuracy: Number,
     precision: Number,
@@ -11,7 +12,8 @@ const modelMetricsSchema = new mongoose.Schema({
   },
   training_info: {
     dataset_size: Number,
-    training_duration: String
+    training_duration: String,
+    model_type: String
   },
   confusion_matrix: {
     TP: Number,
@@ -21,4 +23,4 @@ const modelMetricsSchema = new mongoose.Schema({
   }
 });
 
-export default mongoose.model('ModelMetrics', modelMetricsSchema); 
+export default mongoose.model('ModelMetrics', modelMetricsSchema);

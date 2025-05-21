@@ -28,6 +28,6 @@ router.get('/categories', [auth, isAdmin], async (req, res) => {
 router.get('/date-range', [auth, isAdmin], getAnalyticsByDateRange);
 
 // Get bubble chart data
-router.get('/bubble-chart', auth, getBubbleChartData);
+router.get('/bubble-chart', getBubbleChartData);
 
 export default router; 

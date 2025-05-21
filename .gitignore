@@ -1,0 +1,31 @@
+# Deployment
+.vercel
+.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Dependencies
+node_modules/
+**/venv/
+**/__pycache__/
+**/.pytest_cache/
+
+# Build outputs
+dist/
+build/
+**/models/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo

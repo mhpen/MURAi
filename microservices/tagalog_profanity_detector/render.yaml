@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: murai-model-service
+    env: image
+    region: singapore  # Choose a region close to your users
+    plan: free  # Start with free tier, can upgrade later
+    healthCheckPath: /health
+    image:
+      url: mhpen/murai-model-service:latest  # Docker Hub username
+    envVars:
+      - key: API_URL
+        value: https://murai-qgd8.onrender.com
+      - key: MICROSERVICE_API_KEY
+        value: murai-microservice-api-key-2024
+      - key: MODEL_VERSION
+        value: v1.3.0
+      - key: PORT
+        value: 8000
+      - key: PYTHONUNBUFFERED
+        value: 1
+      - key: TRANSFORMERS_CACHE
+        value: /app/models
+    autoDeploy: true

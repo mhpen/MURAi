@@ -1,65 +1,63 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 import User from '../models/User.js';
-
-// Get the directory path
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import bcrypt from 'bcryptjs';
 
 // Load environment variables from the correct path
-dotenv.config({ path: join(__dirname, '..', '.env') });
+dotenv.config();
 
-const createAdmin = async () => {
+const createAdminUser = async () => {
   try {
-    // Connect to MongoDB using the MONGODB_URI from .env
-    const uri = process.env.MONGODB_URI;
-    if (!uri) {
-      throw new Error('MONGODB_URI is not defined in .env file');
-    }
-
-    await mongoose.connect(uri);
+    await mongoose.connect(process.env.MONGODB_URI);
     console.log('Connected to MongoDB');
 
-    // First, delete existing admin if exists
+    // Delete existing admin if exists
     await User.deleteOne({ email: 'admin@murai.com' });
-    console.log('Cleaned up existing admin user');
-    
-    const adminData = {
-      name: 'Admin User',
+    console.log('Cleaned up any existing admin user');
+
+    // Create admin user with specific ID
+    // Note: In production, you should use a more secure password
+    // This is just a placeholder for development
+    const adminUser = new User({
+      _id: "682326f43e664b30bd65d1d7",
+      name: 'Admin',
       email: 'admin@murai.com',
-      password: 'admin123', // Change this in production
+      password: process.env.ADMIN_PASSWORD || 'admin123', // Will be hashed by schema
       role: 'admin',
       account_status: 'active'
-    };
+    });
 
-    const admin = new User(adminData);
-    await admin.save();
+    await adminUser.save();
+    console.log('Admin user created successfully with ID:', adminUser._id);
+    console.log('Admin credentials:', {
+      email: 'admin@murai.com',
+      password: 'admin123'
+    });
 
-    console.log('Admin user created successfully with email:', adminData.email);
-    await mongoose.disconnect();
-    console.log('Disconnected from MongoDB');
-    process.exit(0);
+    return adminUser;
   } catch (error) {
-    console.error('Error creating admin:', error);
+    console.error('Error creating admin user:', error);
+    throw error;
+  } finally {
+    // Close the connection
     if (mongoose.connection.readyState === 1) {
       await mongoose.disconnect();
       console.log('Disconnected from MongoDB');
     }
-    process.exit(1);
   }
 };
 
-// Add error handlers
-process.on('unhandledRejection', (error) => {
-  console.error('Unhandled Promise Rejection:', error);
-  process.exit(1);
-});
+// Run the script directly
+if (process.argv[1] === new URL(import.meta.url).pathname) {
+  createAdminUser()
+    .then(() => {
+      console.log('Admin creation complete');
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('Failed to create admin:', error);
+      process.exit(1);
+    });
+}
 
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  process.exit(1);
-});
-
-createAdmin(); 
+export default createAdminUser;

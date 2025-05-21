@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Brain, AlertTriangle, CheckCircle2, Clock, Loader2, FlaskConical, TestTube, Beaker } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Brain, AlertTriangle, CheckCircle2, Clock, Loader2, FlaskConical, TestTube, Beaker, Info } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { predictProfanity, saveTestMetrics } from '@/services/modelTestService';
 
 const ModelTestPage = ({ isDarkMode }) => {
@@ -74,9 +75,28 @@ const ModelTestPage = ({ isDarkMode }) => {
         }
     };
 
+    const isProduction = import.meta.env.PROD;
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const isDeployedEnvironment = isProduction || apiUrl.includes('render.com') || apiUrl.includes('vercel.app');
+
     return (
         <div className="p-8">
             <div className="max-w-4xl mx-auto">
+                {isDeployedEnvironment && (
+                    <Alert className={cn(
+                        "mb-6 border-amber-200 bg-amber-50",
+                        isDarkMode && "border-amber-900/50 bg-amber-900/20 text-amber-100"
+                    )}>
+                        <Info className={cn("h-5 w-5", isDarkMode ? "text-amber-400" : "text-amber-600")} />
+                        <AlertTitle className={cn(isDarkMode ? "text-amber-300" : "text-amber-800")}>
+                            Local Testing Only
+                        </AlertTitle>
+                        <AlertDescription className={cn(isDarkMode ? "text-amber-200" : "text-amber-700")}>
+                            The model service is only available when running locally. This deployed version uses mock responses for demonstration purposes.
+                        </AlertDescription>
+                    </Alert>
+                )}
+
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                     <div className="flex items-center gap-3">
                         <FlaskConical className="h-6 w-6 text-primary" />
@@ -263,6 +283,22 @@ const ModelTestPage = ({ isDarkMode }) => {
                                 </span>
                             )}
                         </h2>
+
+                        {isDeployedEnvironment && (
+                            <div className={cn(
+                                "mb-4 p-3 text-sm rounded-md border",
+                                isDarkMode
+                                    ? "border-gray-700 bg-gray-800/50 text-gray-300"
+                                    : "border-gray-200 bg-gray-50 text-gray-600"
+                            )}>
+                                <div className="flex items-start gap-2">
+                                    <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                                    <span>
+                                        This is a mock response for demonstration purposes. For accurate model predictions, please run the application locally.
+                                    </span>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className={cn(

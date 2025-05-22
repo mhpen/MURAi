@@ -12,7 +12,8 @@ import {
     LineChart,
     Filter,
     Clock,
-    Info
+    Info,
+    Trophy
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1145,143 +1146,194 @@ const ModelDashboard = ({ isDarkMode }) => {
                                 </div>
 
                                 {comparisonData && (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <>
+                                        {/* Best Model Summary Card */}
                                         <div className={cn(
-                                            "rounded-lg p-5",
-                                            isDarkMode ? "bg-gray-800/50" : "bg-gray-50"
+                                            "mb-6 p-5 rounded-lg border",
+                                            isDarkMode
+                                                ? "bg-gray-800/30 border-gray-700"
+                                                : "bg-blue-50 border-blue-100"
                                         )}>
-                                            <h4 className="text-md font-medium mb-4 flex items-center gap-2">
-                                                <span>Performance Metrics</span>
-                                                <div className={cn(
-                                                    "text-xs px-2 py-0.5 rounded-full",
-                                                    isDarkMode ? "bg-gray-700" : "bg-gray-200"
-                                                )}>
-                                                    Best Model
+                                            {(() => {
+                                                // Calculate which model is better overall
+                                                const bertScore = comparisonData.bert?.performance?.f1_score || 0;
+                                                const robertaScore = comparisonData.roberta?.performance?.f1_score || 0;
+                                                const bestModel = robertaScore >= bertScore ? 'RoBERTa' : 'BERT';
+                                                const bestModelColor = bestModel === 'RoBERTa' ? 'green' : 'blue';
+                                                const difference = Math.abs(robertaScore - bertScore).toFixed(4);
+                                                const percentDiff = bertScore > 0 ? (Math.abs(robertaScore - bertScore) / bertScore * 100).toFixed(1) : 0;
+
+                                                return (
+                                                    <div className="flex items-start gap-4">
+                                                        <div className={cn(
+                                                            "w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0",
+                                                            bestModel === 'RoBERTa'
+                                                                ? isDarkMode ? "bg-green-900/30" : "bg-green-100"
+                                                                : isDarkMode ? "bg-blue-900/30" : "bg-blue-100"
+                                                        )}>
+                                                            <Trophy className={cn(
+                                                                "h-6 w-6",
+                                                                bestModel === 'RoBERTa' ? "text-green-500" : "text-blue-500"
+                                                            )} />
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <h4 className="text-lg font-semibold">
+                                                                    {bestModel}
+                                                                </h4>
+                                                                <div className={cn(
+                                                                    "text-xs px-2 py-0.5 rounded-full",
+                                                                    bestModel === 'RoBERTa'
+                                                                        ? isDarkMode ? "bg-green-900/30 text-green-300" : "bg-green-100 text-green-700"
+                                                                        : isDarkMode ? "bg-blue-900/30 text-blue-300" : "bg-blue-100 text-blue-700"
+                                                                )}>
+                                                                    Best Model
+                                                                </div>
+                                                            </div>
+                                                            <p className="text-sm">
+                                                                {bestModel} outperforms {bestModel === 'RoBERTa' ? 'BERT' : 'RoBERTa'} by <span className="font-medium">{difference}</span> F1 score points ({percentDiff}% improvement).
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className={cn(
+                                                "rounded-lg p-5",
+                                                isDarkMode ? "bg-gray-800/50" : "bg-gray-50"
+                                            )}>
+                                                <h4 className="text-md font-medium mb-4 flex items-center gap-2">
+                                                    <span>Performance Metrics</span>
+                                                </h4>
+                                                <div className="space-y-4">
+                                                    {['accuracy', 'precision', 'recall', 'f1_score'].map(metric => {
+                                                        const bertValue = comparisonData.bert?.performance?.[metric] || 0;
+                                                        const robertaValue = comparisonData.roberta?.performance?.[metric] || 0;
+                                                        const bestModel = robertaValue >= bertValue ? 'RoBERTa' : 'BERT';
+                                                        const difference = Math.abs(robertaValue - bertValue).toFixed(4);
+                                                        const percentDiff = bertValue > 0 ? (difference / bertValue * 100).toFixed(1) : 0;
+
+                                                        return (
+                                                            <div key={metric} className="flex flex-col">
+                                                                <div className="flex justify-between items-center mb-1">
+                                                                    <span className="capitalize text-sm font-medium">{metric.replace('_', ' ')}</span>
+                                                                    <div className="flex items-center">
+                                                                        <div className={cn(
+                                                                            "text-xs px-2 py-0.5 rounded-full font-medium",
+                                                                            bestModel === 'RoBERTa'
+                                                                                ? isDarkMode ? "bg-green-900/30 text-green-300" : "bg-green-100 text-green-700"
+                                                                                : isDarkMode ? "bg-blue-900/30 text-blue-300" : "bg-blue-100 text-blue-700"
+                                                                        )}>
+                                                                            {bestModel} +{percentDiff}%
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-xs mt-1">
+                                                                    <div className="flex-1 flex items-center gap-2">
+                                                                        <span className="text-blue-500 font-medium w-16">BERT:</span>
+                                                                        <div className="flex-1 h-3 bg-blue-100 dark:bg-blue-900/20 rounded-full overflow-hidden">
+                                                                            <div
+                                                                                className="h-full bg-blue-500 rounded-full"
+                                                                                style={{ width: `${bertValue * 100}%` }}
+                                                                            ></div>
+                                                                        </div>
+                                                                        <span className="w-12 text-right">{bertValue.toFixed(3)}</span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-xs mt-1">
+                                                                    <div className="flex-1 flex items-center gap-2">
+                                                                        <span className="text-green-500 font-medium w-16">RoBERTa:</span>
+                                                                        <div className="flex-1 h-3 bg-green-100 dark:bg-green-900/20 rounded-full overflow-hidden">
+                                                                            <div
+                                                                                className="h-full bg-green-500 rounded-full"
+                                                                                style={{ width: `${robertaValue * 100}%` }}
+                                                                            ></div>
+                                                                        </div>
+                                                                        <span className="w-12 text-right">{robertaValue.toFixed(3)}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
-                                            </h4>
-                                            <div className="space-y-3">
-                                                {['accuracy', 'precision', 'recall', 'f1_score'].map(metric => {
-                                                    const bertValue = comparisonData.bert?.performance?.[metric] || 0;
-                                                    const robertaValue = comparisonData.roberta?.performance?.[metric] || 0;
-                                                    const bestModel = robertaValue >= bertValue ? 'RoBERTa' : 'BERT';
-                                                    const difference = Math.abs(robertaValue - bertValue).toFixed(4);
-                                                    const percentDiff = bertValue > 0 ? (difference / bertValue * 100).toFixed(1) : 0;
+                                            </div>
 
-                                                    return (
-                                                        <div key={metric} className="flex flex-col">
-                                                            <div className="flex justify-between items-center mb-1">
-                                                                <span className="capitalize text-sm">{metric.replace('_', ' ')}</span>
-                                                                <div className="flex items-center">
-                                                                    <span className={cn(
-                                                                        "font-medium",
-                                                                        bestModel === 'RoBERTa' ? "text-green-500" : "text-blue-500"
-                                                                    )}>
-                                                                        {bestModel}
+                                            <div className={cn(
+                                                "rounded-lg p-5",
+                                                isDarkMode ? "bg-gray-800/50" : "bg-gray-50"
+                                            )}>
+                                                <h4 className="text-md font-medium mb-4">Confusion Matrix Comparison</h4>
+                                                <div className="space-y-4">
+                                                    {['TP', 'FP', 'TN', 'FN'].map(metric => {
+                                                        const bertValue = comparisonData.bert?.confusion_matrix?.[metric] || 0;
+                                                        const robertaValue = comparisonData.roberta?.confusion_matrix?.[metric] || 0;
+
+                                                        // For TP and TN, higher is better; for FP and FN, lower is better
+                                                        const isBetterHigher = metric === 'TP' || metric === 'TN';
+                                                        const bestModel = isBetterHigher
+                                                            ? (robertaValue >= bertValue ? 'RoBERTa' : 'BERT')
+                                                            : (robertaValue <= bertValue ? 'RoBERTa' : 'BERT');
+
+                                                        const difference = Math.abs(robertaValue - bertValue).toFixed(0);
+                                                        const percentDiff = bertValue > 0 ? (Math.abs(robertaValue - bertValue) / bertValue * 100).toFixed(1) : 0;
+
+                                                        // Calculate max value for relative bar sizing
+                                                        const maxValue = Math.max(bertValue, robertaValue);
+                                                        const bertPercent = maxValue > 0 ? (bertValue / maxValue) * 100 : 0;
+                                                        const robertaPercent = maxValue > 0 ? (robertaValue / maxValue) * 100 : 0;
+
+                                                        return (
+                                                            <div key={metric} className="flex flex-col">
+                                                                <div className="flex justify-between items-center mb-1">
+                                                                    <span className="text-sm font-medium">
+                                                                        {metric === 'TP' ? 'True Positives' :
+                                                                         metric === 'FP' ? 'False Positives' :
+                                                                         metric === 'TN' ? 'True Negatives' : 'False Negatives'}
                                                                     </span>
-                                                                    <span className="text-xs ml-2 text-muted-foreground">
-                                                                        (+{difference} / {percentDiff}%)
-                                                                    </span>
+                                                                    <div className="flex items-center">
+                                                                        <div className={cn(
+                                                                            "text-xs px-2 py-0.5 rounded-full font-medium",
+                                                                            bestModel === 'RoBERTa'
+                                                                                ? isDarkMode ? "bg-green-900/30 text-green-300" : "bg-green-100 text-green-700"
+                                                                                : isDarkMode ? "bg-blue-900/30 text-blue-300" : "bg-blue-100 text-blue-700"
+                                                                        )}>
+                                                                            {bestModel} {isBetterHigher ? '+' : '-'}{percentDiff}%
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-xs mt-1">
+                                                                    <div className="flex-1 flex items-center gap-2">
+                                                                        <span className="text-blue-500 font-medium w-16">BERT:</span>
+                                                                        <div className="flex-1 h-3 bg-blue-100 dark:bg-blue-900/20 rounded-full overflow-hidden">
+                                                                            <div
+                                                                                className="h-full bg-blue-500 rounded-full"
+                                                                                style={{ width: `${bertPercent}%` }}
+                                                                            ></div>
+                                                                        </div>
+                                                                        <span className="w-12 text-right">{bertValue.toLocaleString()}</span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-xs mt-1">
+                                                                    <div className="flex-1 flex items-center gap-2">
+                                                                        <span className="text-green-500 font-medium w-16">RoBERTa:</span>
+                                                                        <div className="flex-1 h-3 bg-green-100 dark:bg-green-900/20 rounded-full overflow-hidden">
+                                                                            <div
+                                                                                className="h-full bg-green-500 rounded-full"
+                                                                                style={{ width: `${robertaPercent}%` }}
+                                                                            ></div>
+                                                                        </div>
+                                                                        <span className="w-12 text-right">{robertaValue.toLocaleString()}</span>
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                            <div className="flex items-center gap-2 text-xs">
-                                                                <div className="flex-1 flex items-center gap-2">
-                                                                    <span className="text-blue-500 font-medium">BERT:</span>
-                                                                    <div className="flex-1 h-2 bg-blue-100 dark:bg-blue-900/20 rounded-full overflow-hidden">
-                                                                        <div
-                                                                            className="h-full bg-blue-500 rounded-full"
-                                                                            style={{ width: `${bertValue * 100}%` }}
-                                                                        ></div>
-                                                                    </div>
-                                                                    <span>{bertValue.toFixed(3)}</span>
-                                                                </div>
-                                                                <div className="flex-1 flex items-center gap-2">
-                                                                    <span className="text-green-500 font-medium">RoBERTa:</span>
-                                                                    <div className="flex-1 h-2 bg-green-100 dark:bg-green-900/20 rounded-full overflow-hidden">
-                                                                        <div
-                                                                            className="h-full bg-green-500 rounded-full"
-                                                                            style={{ width: `${robertaValue * 100}%` }}
-                                                                        ></div>
-                                                                    </div>
-                                                                    <span>{robertaValue.toFixed(3)}</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
                                         </div>
-
-                                        <div className={cn(
-                                            "rounded-lg p-5",
-                                            isDarkMode ? "bg-gray-800/50" : "bg-gray-50"
-                                        )}>
-                                            <h4 className="text-md font-medium mb-4">Confusion Matrix Comparison</h4>
-                                            <div className="space-y-3">
-                                                {['TP', 'FP', 'TN', 'FN'].map(metric => {
-                                                    const bertValue = comparisonData.bert?.confusion_matrix?.[metric] || 0;
-                                                    const robertaValue = comparisonData.roberta?.confusion_matrix?.[metric] || 0;
-
-                                                    // For TP and TN, higher is better; for FP and FN, lower is better
-                                                    const isBetterHigher = metric === 'TP' || metric === 'TN';
-                                                    const bestModel = isBetterHigher
-                                                        ? (robertaValue >= bertValue ? 'RoBERTa' : 'BERT')
-                                                        : (robertaValue <= bertValue ? 'RoBERTa' : 'BERT');
-
-                                                    const difference = Math.abs(robertaValue - bertValue).toFixed(0);
-
-                                                    // Calculate max value for relative bar sizing
-                                                    const maxValue = Math.max(bertValue, robertaValue);
-                                                    const bertPercent = maxValue > 0 ? (bertValue / maxValue) * 100 : 0;
-                                                    const robertaPercent = maxValue > 0 ? (robertaValue / maxValue) * 100 : 0;
-
-                                                    return (
-                                                        <div key={metric} className="flex flex-col">
-                                                            <div className="flex justify-between items-center mb-1">
-                                                                <span className="text-sm">
-                                                                    {metric === 'TP' ? 'True Positives' :
-                                                                     metric === 'FP' ? 'False Positives' :
-                                                                     metric === 'TN' ? 'True Negatives' : 'False Negatives'}
-                                                                </span>
-                                                                <div className="flex items-center">
-                                                                    <span className={cn(
-                                                                        "font-medium",
-                                                                        bestModel === 'RoBERTa' ? "text-green-500" : "text-blue-500"
-                                                                    )}>
-                                                                        {bestModel}
-                                                                    </span>
-                                                                    <span className="text-xs ml-2 text-muted-foreground">
-                                                                        ({isBetterHigher ? '+' : '-'}{difference})
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex items-center gap-2 text-xs">
-                                                                <div className="flex-1 flex items-center gap-2">
-                                                                    <span className="text-blue-500 font-medium">BERT:</span>
-                                                                    <div className="flex-1 h-2 bg-blue-100 dark:bg-blue-900/20 rounded-full overflow-hidden">
-                                                                        <div
-                                                                            className="h-full bg-blue-500 rounded-full"
-                                                                            style={{ width: `${bertPercent}%` }}
-                                                                        ></div>
-                                                                    </div>
-                                                                    <span>{bertValue.toLocaleString()}</span>
-                                                                </div>
-                                                                <div className="flex-1 flex items-center gap-2">
-                                                                    <span className="text-green-500 font-medium">RoBERTa:</span>
-                                                                    <div className="flex-1 h-2 bg-green-100 dark:bg-green-900/20 rounded-full overflow-hidden">
-                                                                        <div
-                                                                            className="h-full bg-green-500 rounded-full"
-                                                                            style={{ width: `${robertaPercent}%` }}
-                                                                        ></div>
-                                                                    </div>
-                                                                    <span>{robertaValue.toLocaleString()}</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    </div>
+                                    </>
                                 )}
 
                                 <div className={cn(
@@ -1301,8 +1353,8 @@ const ModelDashboard = ({ isDarkMode }) => {
                                             <h4 className="text-md font-medium mb-2">Conclusion</h4>
                                             <p className="text-sm">
                                                 {comparisonData && comparisonData.roberta?.performance?.f1_score >= (comparisonData.bert?.performance?.f1_score || 0)
-                                                    ? "The RoBERTa model outperforms BERT for Tagalog profanity detection, showing better overall metrics especially in F1 score and precision. This suggests that RoBERTa's pretraining approach is more effective for this specific task."
-                                                    : "The BERT model performs better for Tagalog profanity detection in this dataset, with stronger metrics across most performance indicators. This suggests that BERT's architecture may be more suitable for this specific language task."
+                                                    ? "The RoBERTa model outperforms BERT for Tagalog profanity detection, showing better overall metrics especially in F1 score and precision. This suggests that RoBERTa's pretraining approach and larger parameter space is more effective for capturing the nuances of Tagalog language patterns in this specific task."
+                                                    : "The BERT model performs better for Tagalog profanity detection in this dataset, with stronger metrics across most performance indicators. This suggests that BERT's architecture may be more suitable for this specific language task, possibly due to its efficient parameter utilization for the Tagalog language context."
                                                 }
                                             </p>
                                         </div>

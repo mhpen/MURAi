@@ -28,7 +28,8 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer
+  ResponsiveContainer,
+  Brush
 } from 'recharts';
 import {
   Refresh as RefreshIcon,
@@ -40,6 +41,7 @@ import {
   TextFields as TextFieldsIcon,
   KeyboardArrowUp as KeyboardArrowUpIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
+  BarChart as BarChart3,
 } from '@mui/icons-material';
 import Logo from '../../assets/logo.png';
 import api from '@/utils/api';
@@ -144,7 +146,7 @@ const BubbleChart = () => {
     });
 
     setBubbleData(newBubbleData);
-  }, [settings, getResponsiveSizes]);
+  }, [settings.bubbleColor, settings.reducedMotion, settings.animationSpeed, getResponsiveSizes]);
 
   const updateBubblePositions = useCallback(() => {
     if (settings.reducedMotion) return;
@@ -268,7 +270,25 @@ const BubbleChart = () => {
     setTimeFrame(event.target.value);
   };
 
-  const handleBubbleClick = async (bubble) => {
+  // State for trend analysis time frame
+  const [trendTimeFrame, setTrendTimeFrame] = useState('day');
+
+  const handleBubbleClick = async (bubble, event) => {
+    // Stop event propagation to prevent bubbling
+    if (event) {
+      event.stopPropagation();
+    }
+
+    // Prevent animation from continuing while dialog is open
+    if (settings.reducedMotion === false) {
+      // Store current setting to restore later
+      setSettings(prev => ({
+        ...prev,
+        _previousMotionSetting: prev.reducedMotion,
+        reducedMotion: true
+      }));
+    }
+
     // Show loading state in the bubble
     setSelectedBubble({
       ...bubble,
@@ -276,8 +296,8 @@ const BubbleChart = () => {
       isLoading: true
     });
 
-    // Fetch trend data
-    const trendData = await getTrendData(bubble.word);
+    // Fetch trend data with the current time frame
+    const trendData = await getTrendData(bubble.word, trendTimeFrame);
 
     // Update with the fetched data
     setSelectedBubble(prev => ({
@@ -285,6 +305,20 @@ const BubbleChart = () => {
       trendData,
       isLoading: false
     }));
+  };
+
+  // Handle dialog close and restore animation settings
+  const handleDialogClose = () => {
+    // Restore previous motion setting if it was changed
+    if (settings._previousMotionSetting !== undefined) {
+      setSettings(prev => ({
+        ...prev,
+        reducedMotion: prev._previousMotionSetting,
+        _previousMotionSetting: undefined
+      }));
+    }
+
+    setSelectedBubble(null);
   };
 
   const handleSearch = (event) => {
@@ -297,25 +331,64 @@ const BubbleChart = () => {
     );
   }, [bubbleData, searchTerm]);
 
-  // Fetch trend data for a specific word
-  const getTrendData = async (word) => {
+  // Fetch trend data for a specific word with time frame option
+  const getTrendData = async (word, selectedTimeFrame = 'day') => {
     try {
       const { data } = await api.get('/api/analytics/word-trend', {
-        params: { word, timeFrame }
+        params: { word, timeFrame: selectedTimeFrame }
       });
 
       if (data && Array.isArray(data)) {
         return data;
       }
 
-      // Return empty data if API fails
-      return Array.from({ length: 24 }, (i) => ({
+      // Generate appropriate empty data based on time frame
+      if (selectedTimeFrame === 'day') {
+        return Array.from({ length: 24 }, (_, i) => ({
+          time: `${i}:00`,
+          count: 0
+        }));
+      } else if (selectedTimeFrame === 'month') {
+        return Array.from({ length: 30 }, (_, i) => ({
+          time: `Day ${i + 1}`,
+          count: 0
+        }));
+      } else if (selectedTimeFrame === 'year') {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return months.map(month => ({
+          time: month,
+          count: 0
+        }));
+      }
+
+      // Default fallback
+      return Array.from({ length: 24 }, (_, i) => ({
         time: `${i}:00`,
         count: 0
       }));
     } catch (error) {
       console.error('Error fetching trend data:', error);
-      // Return empty data if API fails
+
+      // Generate appropriate empty data based on time frame
+      if (selectedTimeFrame === 'day') {
+        return Array.from({ length: 24 }, (_, i) => ({
+          time: `${i}:00`,
+          count: 0
+        }));
+      } else if (selectedTimeFrame === 'month') {
+        return Array.from({ length: 30 }, (_, i) => ({
+          time: `Day ${i + 1}`,
+          count: 0
+        }));
+      } else if (selectedTimeFrame === 'year') {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return months.map(month => ({
+          time: month,
+          count: 0
+        }));
+      }
+
+      // Default fallback
       return Array.from({ length: 24 }, (_, i) => ({
         time: `${i}:00`,
         count: 0
@@ -323,8 +396,32 @@ const BubbleChart = () => {
     }
   };
 
-  // Modify BubbleComponent to use responsive sizes and ensure perfect circles
+  // Enhanced BubbleComponent with better visual effects
   const BubbleComponent = memo(({ item, onClick }) => {
+    // Extract RGB values for glow effect
+    const extractRGB = (color) => {
+      if (color.startsWith('rgba')) {
+        const parts = color.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*[\d.]+\)/);
+        if (parts) return [parts[1], parts[2], parts[3]];
+      } else if (color.startsWith('rgb')) {
+        const parts = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+        if (parts) return [parts[1], parts[2], parts[3]];
+      } else if (color.startsWith('#')) {
+        const r = parseInt(color.slice(1, 3), 16);
+        const g = parseInt(color.slice(3, 5), 16);
+        const b = parseInt(color.slice(5, 7), 16);
+        return [r, g, b];
+      }
+      return [75, 192, 192]; // Default teal color
+    };
+
+    const [r, g, b] = extractRGB(item.color);
+    const glowColor = `rgba(${r}, ${g}, ${b}, 0.6)`;
+    const glowColorIntense = `rgba(${r}, ${g}, ${b}, 0.8)`;
+
+    // Calculate if this is a large bubble (for enhanced styling)
+    const isLargeBubble = item.size > 60;
+
     return (
       <Box
         onClick={onClick}
@@ -335,59 +432,106 @@ const BubbleChart = () => {
           width: `${item.size}px`,
           height: `${item.size}px`,
           borderRadius: '50%', // Ensures perfect circle
-          backgroundColor: settings.darkMode ? item.color : item.color,
+          background: `radial-gradient(circle at 30% 30%, ${item.color.replace(/[\d.]+\)$/, '1)')}, ${item.color})`, // Add gradient for 3D effect
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           transform: 'translate(-50%, -50%)',
           cursor: 'pointer',
-          transition: 'transform 0.2s ease',
+          transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, background-color 0.3s ease', // Bouncy animation
           aspectRatio: '1 / 1', // Force aspect ratio to be 1:1
+          overflow: 'hidden', // Ensure text doesn't overflow
           '&:hover': {
-            transform: 'translate(-50%, -50%) scale(1.1)',
-            zIndex: 2,
-            boxShadow: settings.darkMode
-              ? '0 0 20px rgba(255,255,255,0.2)'
-              : '0 0 20px rgba(0,0,0,0.2)',
+            transform: 'translate(-50%, -50%) scale(1.15)',
+            zIndex: 10,
+            boxShadow: `0 0 20px ${glowColor}, 0 0 10px ${glowColorIntense}`,
           },
-          boxShadow: settings.darkMode
-            ? '0 4px 12px rgba(0,0,0,0.3)'
-            : '0 4px 12px rgba(0,0,0,0.1)',
+          boxShadow: `0 4px 12px rgba(0,0,0,0.2), 0 0 ${isLargeBubble ? '15px' : '8px'} ${glowColor}`,
+          // Add subtle pulsing animation for larger bubbles
+          animation: isLargeBubble ? 'pulse 3s infinite alternate' : 'none',
+          '@keyframes pulse': {
+            '0%': {
+              boxShadow: `0 4px 12px rgba(0,0,0,0.2), 0 0 10px ${glowColor}`
+            },
+            '100%': {
+              boxShadow: `0 4px 12px rgba(0,0,0,0.2), 0 0 20px ${glowColor}`
+            }
+          },
         }}
       >
         {settings.showLabels && (
-          <>
+          <Box sx={{
+            position: 'relative',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '4px',
+          }}>
+            {/* Semi-transparent background for better text readability */}
+            <Box sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '85%',
+              height: '85%',
+              borderRadius: '50%',
+              backgroundColor: 'rgba(0,0,0,0.15)',
+              opacity: 0.7,
+              zIndex: 0,
+            }} />
+
+            {/* Word text */}
             <Typography
               sx={{
-                color: settings.darkMode ? 'white' : 'black',
-                fontSize: `${Math.max(item.size * 0.2, 12)}px`, // Responsive font size
+                color: 'white',
+                fontSize: `${Math.max(item.size * 0.22, 13)}px`, // Slightly larger font
                 fontWeight: 'bold',
                 textAlign: 'center',
-                textShadow: settings.darkMode
-                  ? '1px 1px 2px rgba(0,0,0,0.5)'
-                  : 'none',
+                textShadow: '0px 1px 3px rgba(0,0,0,0.8), 0px 0px 5px rgba(0,0,0,0.5)', // Enhanced text shadow
                 width: '100%',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
                 padding: '0 4px',
                 maxWidth: `${item.size * 0.9}px`, // Prevent text from overflowing
+                zIndex: 1,
+                position: 'relative',
+                letterSpacing: '0.5px', // Improved readability
               }}
             >
               {item.word}
             </Typography>
-            <Typography
-              sx={{
-                color: settings.darkMode ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)',
-                fontSize: `${Math.max(item.size * 0.15, 10)}px`, // Smaller count size
-                mt: 0.5,
-                fontWeight: 'bold', // Make count more prominent
-              }}
-            >
-              {item.count}
-            </Typography>
-          </>
+
+            {/* Count with background pill for better visibility */}
+            <Box sx={{
+              backgroundColor: 'rgba(0,0,0,0.3)',
+              borderRadius: '10px',
+              padding: `${Math.max(item.size * 0.03, 2)}px ${Math.max(item.size * 0.06, 4)}px`,
+              mt: 0.5,
+              zIndex: 1,
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: `${Math.max(item.size * 0.3, 20)}px`,
+            }}>
+              <Typography
+                sx={{
+                  color: 'white',
+                  fontSize: `${Math.max(item.size * 0.16, 11)}px`, // Slightly larger count
+                  fontWeight: 'bold',
+                  textShadow: '0px 1px 2px rgba(0,0,0,0.5)',
+                }}
+              >
+                {item.count}
+              </Typography>
+            </Box>
+          </Box>
         )}
       </Box>
     );
@@ -431,29 +575,88 @@ const BubbleChart = () => {
     }
   }, [timeFrame, processData]);
 
-  // Function to determine bubble color based on category and severity
+  // Enhanced function to determine bubble color based on category and severity
   const getColorByCategory = (category, severity) => {
+    // More vibrant base colors with better contrast
     const baseColors = {
-      profanity: '#FF4444',
-      slur: '#FF8800',
-      sexual: '#CC00CC'
+      profanity: '#FF3B30', // Brighter red
+      slur: '#FF9500',      // Vibrant orange
+      sexual: '#AF52DE',    // Rich purple
+      hate: '#FF2D55',      // Pink
+      violence: '#FF3824',  // Red-orange
+      default: '#5856D6'    // Indigo for uncategorized
     };
 
-    // Adjust color opacity based on severity (1-5)
-    const opacity = 0.4 + (severity * 0.12); // This will scale from 0.52 to 1
-    const baseColor = baseColors[category] || '#666666';
+    // Normalize severity to 1-5 range if needed
+    const normalizedSeverity = Math.min(5, Math.max(1, severity || 3));
 
-    // Convert hex to rgba
-    const r = parseInt(baseColor.slice(1,3), 16);
-    const g = parseInt(baseColor.slice(3,5), 16);
-    const b = parseInt(baseColor.slice(5,7), 16);
+    // Create a gradient effect based on severity
+    // Higher severity = more saturated and slightly darker
+    const baseColor = baseColors[category] || baseColors.default;
 
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    // Convert hex to HSL for better color manipulation
+    const r = parseInt(baseColor.slice(1,3), 16) / 255;
+    const g = parseInt(baseColor.slice(3,5), 16) / 255;
+    const b = parseInt(baseColor.slice(5,7), 16) / 255;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h, s, l = (max + min) / 2;
+
+    if (max === min) {
+      h = s = 0; // achromatic
+    } else {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        case b: h = (r - g) / d + 4; break;
+        default: h = 0;
+      }
+      h /= 6;
+    }
+
+    // Adjust saturation and lightness based on severity
+    s = Math.min(1, s + (normalizedSeverity * 0.05)); // Increase saturation with severity
+    l = Math.max(0.3, Math.min(0.7, l - (normalizedSeverity * 0.03))); // Slightly darker with higher severity
+
+    // Convert back to RGB
+    let r1, g1, b1;
+    if (s === 0) {
+      r1 = g1 = b1 = l; // achromatic
+    } else {
+      const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q - p) * 6 * t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+      };
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r1 = hue2rgb(p, q, h + 1/3);
+      g1 = hue2rgb(p, q, h);
+      b1 = hue2rgb(p, q, h - 1/3);
+    }
+
+    // Add a slight glow effect with box-shadow in the component
+    return `rgba(${Math.round(r1 * 255)}, ${Math.round(g1 * 255)}, ${Math.round(b1 * 255)}, 0.9)`;
   };
 
+  // Fetch data when timeFrame changes
   useEffect(() => {
     fetchBubbleData();
   }, [fetchBubbleData, timeFrame]);
+
+  // Reprocess data when bubble color changes
+  useEffect(() => {
+    if (bubbleData.length > 0) {
+      // Only reprocess if we already have data
+      processData({ words: bubbleData.map(item => ({ ...item })) });
+    }
+  }, [settings.bubbleColor, processData]);
 
   // Show loading state
   if (isLoading) {
@@ -740,14 +943,14 @@ const BubbleChart = () => {
           <BubbleComponent
             key={index}
             item={item}
-            onClick={() => handleBubbleClick(item)}
+            onClick={(e) => handleBubbleClick(item, e)}
           />
         ))}
       </Box>
 
       <Dialog
         open={!!selectedBubble}
-        onClose={() => setSelectedBubble(null)}
+        onClose={handleDialogClose}
         maxWidth="md"
         fullWidth
         PaperProps={{
@@ -757,13 +960,71 @@ const BubbleChart = () => {
             boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
           }
         }}
+        onClick={(e) => e.stopPropagation()} // Prevent clicks from propagating
       >
         {selectedBubble && (
           <>
-            <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white' }}>
-              Trend Analysis: {selectedBubble.word}
+            <DialogTitle sx={{
+              bgcolor: 'primary.main',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              p: 2
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <BarChart3 size={20} />
+                <Typography variant="h6" component="span">
+                  Trend Analysis: {selectedBubble.word}
+                </Typography>
+              </Box>
+
+              {/* Time frame selector */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                  Time Range:
+                </Typography>
+                <Select
+                  value={trendTimeFrame}
+                  onChange={(e) => {
+                    setTrendTimeFrame(e.target.value);
+                    // Refresh data with new time frame
+                    handleBubbleClick(selectedBubble);
+                  }}
+                  size="small"
+                  sx={{
+                    height: 32,
+                    minWidth: 120,
+                    color: 'white',
+                    '.MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'rgba(255,255,255,0.3)',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'rgba(255,255,255,0.5)',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'rgba(255,255,255,0.7)',
+                    },
+                    '.MuiSvgIcon-root': {
+                      color: 'rgba(255,255,255,0.7)',
+                    }
+                  }}
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        bgcolor: settings.darkMode ? '#1a1a1a' : '#ffffff',
+                      }
+                    }
+                  }}
+                >
+                  <MenuItem value="day">Last 24 Hours</MenuItem>
+                  <MenuItem value="month">Last 30 Days</MenuItem>
+                  <MenuItem value="year">Last Year</MenuItem>
+                </Select>
+              </Box>
             </DialogTitle>
-            <DialogContent sx={{ height: 400, pt: 2 }}>
+
+            <DialogContent sx={{ height: 400, pt: 2, pb: 3 }}>
               {selectedBubble.isLoading ? (
                 <Box sx={{
                   display: 'flex',
@@ -776,26 +1037,58 @@ const BubbleChart = () => {
               ) : selectedBubble.trendData && selectedBubble.trendData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={selectedBubble.trendData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" />
-                    <YAxis />
-                    <Tooltip />
+                    <CartesianGrid strokeDasharray="3 3" stroke={settings.darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
+                    <XAxis
+                      dataKey="time"
+                      tick={{ fill: settings.darkMode ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }}
+                      axisLine={{ stroke: settings.darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)' }}
+                    />
+                    <YAxis
+                      tick={{ fill: settings.darkMode ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }}
+                      axisLine={{ stroke: settings.darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)' }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: settings.darkMode ? '#333' : '#fff',
+                        borderColor: settings.darkMode ? '#555' : '#ddd',
+                        color: settings.darkMode ? '#fff' : '#333'
+                      }}
+                    />
                     <Line
                       type="monotone"
                       dataKey="count"
                       stroke="#8884d8"
                       strokeWidth={2}
+                      dot={{ r: 4, strokeWidth: 2 }}
+                      activeDot={{ r: 6, strokeWidth: 2 }}
+                    />
+                    <Brush
+                      dataKey="time"
+                      height={30}
+                      stroke={settings.darkMode ? '#666' : '#8884d8'}
+                      fill={settings.darkMode ? '#333' : '#f5f5f5'}
                     />
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
                 <Box sx={{
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  height: '100%'
+                  height: '100%',
+                  gap: 2
                 }}>
-                  <Typography>No trend data available</Typography>
+                  <Typography sx={{ color: settings.darkMode ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }}>
+                    No trend data available for this time period
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    startIcon={<RefreshIcon />}
+                    onClick={() => handleBubbleClick(selectedBubble)}
+                  >
+                    Refresh Data
+                  </Button>
                 </Box>
               )}
             </DialogContent>
@@ -848,20 +1141,54 @@ const BubbleChart = () => {
                   sx: { color: settings.darkMode ? 'grey.400' : 'grey.600' }
                 }}
               />
-              <input
-                type="color"
-                value={settings.bubbleColor}
-                onChange={(e) => setSettings(prev => ({
-                  ...prev,
-                  bubbleColor: e.target.value
-                }))}
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  padding: 0,
-                  border: 'none'
-                }}
-              />
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                <input
+                  type="color"
+                  value={settings.bubbleColor}
+                  onChange={(e) => setSettings(prev => ({
+                    ...prev,
+                    bubbleColor: e.target.value
+                  }))}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    padding: 0,
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                  }}
+                />
+                <Box sx={{
+                  display: 'flex',
+                  gap: 0.5,
+                  mt: 1,
+                  flexWrap: 'wrap',
+                  justifyContent: 'flex-end',
+                  maxWidth: '100px'
+                }}>
+                  {/* Preset colors */}
+                  {['#4CAF50', '#2196F3', '#FF5722', '#9C27B0', '#FF9800', '#F44336'].map(color => (
+                    <Box
+                      key={color}
+                      onClick={() => setSettings(prev => ({ ...prev, bubbleColor: color }))}
+                      sx={{
+                        width: '16px',
+                        height: '16px',
+                        backgroundColor: color,
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                        border: settings.bubbleColor === color ? '2px solid white' : '1px solid rgba(255,255,255,0.3)',
+                        boxShadow: settings.bubbleColor === color ? '0 0 5px rgba(255,255,255,0.5)' : 'none',
+                        transition: 'transform 0.2s ease',
+                        '&:hover': {
+                          transform: 'scale(1.2)'
+                        }
+                      }}
+                    />
+                  ))}
+                </Box>
+              </Box>
             </ListItem>
 
             <ListItem>

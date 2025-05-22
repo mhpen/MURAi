@@ -1,44 +1,14 @@
-import { useState, useEffect } from 'react';
-import { LayoutDashboard, BarChart3, LineChart, RefreshCcw, Clock } from 'lucide-react';
+import { useState } from 'react';
+import { LayoutDashboard, BarChart3, RefreshCcw } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import Overview from './Overview';
 import DetailedView from './DetailedView';
-import api from '@/utils/api';
 
 const AdminDashboard = ({ isDarkMode }) => {
     const [isDetailedView, setIsDetailedView] = useState(false);
-    const [summaryStats, setSummaryStats] = useState({
-        totalFlagged: 0,
-        pendingReports: 0,
-        accuracy: 0,
-        lastUpdated: new Date()
-    });
     const [loading, setLoading] = useState(false);
-
-    // Fetch summary stats for the header banner
-    useEffect(() => {
-        const fetchSummaryStats = async () => {
-            try {
-                setLoading(true);
-                const { data } = await api.get('/api/admin/analytics/summary');
-                setSummaryStats({
-                    totalFlagged: data?.totalFlagged || 0,
-                    pendingReports: data?.pendingReports || 0,
-                    accuracy: data?.accuracy || 0,
-                    lastUpdated: new Date()
-                });
-            } catch (error) {
-                console.error('Error fetching summary stats:', error);
-                // Use default values if API fails
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchSummaryStats();
-    }, []);
 
     const handleRefresh = async () => {
         setLoading(true);
@@ -122,52 +92,7 @@ const AdminDashboard = ({ isDarkMode }) => {
                         </div>
                     </div>
 
-                    {/* Summary Banner */}
-                    <div className={cn(
-                        "border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 transition-all duration-200",
-                        isDarkMode
-                            ? "border-gray-800 bg-gray-900/50"
-                            : "border-gray-100 bg-white"
-                    )}>
-                        <div className="flex items-center gap-3">
-                            <div className={cn(
-                                "w-10 h-10 rounded-full flex items-center justify-center",
-                                isDarkMode ? "bg-blue-900/20" : "bg-blue-50"
-                            )}>
-                                <BarChart3 className="h-5 w-5 text-blue-500" />
-                            </div>
-                            <div>
-                                <p className="text-sm text-muted-foreground">Total Flagged</p>
-                                <p className="text-xl font-semibold">{summaryStats.totalFlagged.toLocaleString()}</p>
-                            </div>
-                        </div>
 
-                        <div className="flex items-center gap-3">
-                            <div className={cn(
-                                "w-10 h-10 rounded-full flex items-center justify-center",
-                                isDarkMode ? "bg-amber-900/20" : "bg-amber-50"
-                            )}>
-                                <LineChart className="h-5 w-5 text-amber-500" />
-                            </div>
-                            <div>
-                                <p className="text-sm text-muted-foreground">Pending Reports</p>
-                                <p className="text-xl font-semibold">{summaryStats.pendingReports.toLocaleString()}</p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <div className={cn(
-                                "w-10 h-10 rounded-full flex items-center justify-center",
-                                isDarkMode ? "bg-green-900/20" : "bg-green-50"
-                            )}>
-                                <Clock className="h-5 w-5 text-green-500" />
-                            </div>
-                            <div>
-                                <p className="text-sm text-muted-foreground">Last Updated</p>
-                                <p className="text-sm font-medium">{summaryStats.lastUpdated.toLocaleTimeString()}</p>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Content */}
